@@ -26,6 +26,7 @@
     <SccProvider>SAK</SccProvider>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
+    <Use64BitIISExpress />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -52,8 +53,11 @@
     <Content Include="Scripts\qunit-assert-html.js" />
     <Content Include="Scripts\qunit-extensions.js" />
     <Content Include="Scripts\test-utils.js" />
+    <Content Include="tests\js\lib-b.js" />
+    <Content Include="tests\js\lib-a.js" />
     <Content Include="tests\js\resource-test.js" />
-    <Content Include="tests\js\scs-require-test.js" />
+    <Content Include="tests\js\my-resource.json" />
+    <None Include="tests\js\_references.js" />
     <Content Include="tests\resource-test.html" />
     <None Include="Scripts\jquery-3.2.1.intellisense.js" />
     <Content Include="Scripts\jquery-3.2.1.js" />

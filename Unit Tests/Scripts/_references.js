@@ -5,3 +5,4 @@
 /// <reference path="qunit-extensions.js" />
 /// <reference path="test-utils.js" /> 
 /// <reference path="imported\resource.js" /> 
+/// <reference path="..\tests\js\scs-js.js" /> 

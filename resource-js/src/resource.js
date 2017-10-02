@@ -1,8 +1,11 @@
 ﻿'use strict';
 
 (function () {
-    const RESOURCE_JS_VERSION = '1.0.0';
-    const RESOURCE_JS_KEY = '__resource-js-' + RESOURCE_JS_VERSION;
+
+    window.fooBar = { baz: 22 };
+
+    var RESOURCE_JS_VERSION = '1.0.0';
+    var RESOURCE_JS_KEY = '__resource-js-' + RESOURCE_JS_VERSION;
 
     if (!window[RESOURCE_JS_KEY]) {
 
@@ -231,6 +234,8 @@
                         set: function (value) { me.externalInterval = value; }
                     }
                 });
+
+                this.Environment = Environment;
             }
 
 
@@ -292,6 +297,7 @@
                 this.loadMark = performance.now();
                 this.externalPending = false;
                 this.timeoutHandles = [];
+                this.pendingActions = [];
 
                 this.externalInterval = 100;
                 this.externalTimeout = 10000;
@@ -355,12 +361,12 @@
                 /// <signature>
                 ///   <summary>Register the remote source of a lazy-loaded resource</summary>
                 ///   <param name="resourceName" type="String">The unique key or name of the resource</param>
-                ///   <param name="definition" type="*">The URL to a script file that, when executed, defines the named resource</param> 
+                ///   <param name="url" type="String">The URL to a script file that, when executed, defines the named resource</param> 
                 /// </signature> 
                 /// <signature>
                 ///   <summary>Register the remote source of a lazy-loaded resource</summary>
                 ///   <param name="resourceName" type="String">The unique key or name of the resource</param>
-                ///   <param name="definition" type="*">The URL to a script file that, when executed, defines the named resource</param> 
+                ///   <param name="url" type="String">The URL to a script file that, when executed, defines the named resource</param> 
                 ///   <param name="isLiteral" type="Boolean" optional="true">If true, the parsed object return from the URL (as passed to the jQuery.ajax.success handler) will be used as the resource itself</param>
                 /// </signature>
                 if (!validate.argCount(arguments, 2, 'define.remote', true)) return;
@@ -456,9 +462,9 @@
                 }
 
                 if (argCnt == 1) {
-                    // First overload. Simply fetching the definition of the resource. Equivalent to explicit require.getResource()
+                    // First overload. Simply fetching the definition of the resource. Equivalent to explicit require.getResource(true)
                     var resourceName = dependsOn;
-                    return this.getResourceHandle(resourceName);
+                    return this.getResourceHandle(resourceName, true);
                 }
 
                 var definition, thisArg;
@@ -502,11 +508,35 @@
                 return resource.defined && resource.resolved;
             };
 
-            _Environment.prototype.getResourceHandle = function (resourceName) {
+            _Environment.prototype.getResourceHandle = function (resourceName, resolve) {
                 /// <summary>Gets a resource definition by name. Returns null if the resource has not been defined or resolved</summary>
+                /// <param name="resourceName" type="String" />
+                /// <param name="resolve" type="Boolean" optional="true">default false. Whether to attempt to resolve the resource if it is not already resolved </param>
                 if (!this.resources.hasOwnProperty(resourceName)) return null;
-                var resource = this.resources[resourceName];
-                return (resource.defined && resource.resolved) ? resource.handle : null;
+                var resource = _getResourceDirect(this, resourceName);
+
+                // Resource is neither defined nor registered to a URL. Return null
+                if (!resource.defined && _isEmpty(resource.url)) {
+                    if (resolve) {
+                        throw new Error('Resource \'' + resourceName + '\' is not yet defined or resolved');
+                        return null;
+                    } else {
+                        return null;
+                    }
+                }
+
+                // Resource is defined and resolved. 
+                if (resource.defined && resource.resolved) return resource.handle;
+
+                // Resource is not resolved. Attempt to resolve if resolve == true
+                if (!resource.resolved && resolve && _resolve(this, resource)) return resource.handle;
+
+                if (resolve) {
+                    throw new Error('Resource \'' + resourceName + '\' is not yet defined or resolved');
+                    return null;
+                } else {
+                    return null;
+                }
             };
 
             _Environment.prototype.getResources = function (includeAnonymous) {
@@ -688,6 +718,11 @@
                 this.anonymousIndex = 1;
                 this.externalPending = false;
                 this.loadMark = performance.now();
+
+                this.debug = false;
+                this.ignoreRedefine = true;
+                this.automaticExternals = true;
+                this.immediateResolve = true;
             };
 
             _Environment.prototype.list_unresolved = function (returnText) {
@@ -835,7 +870,7 @@
                     if (env.debug) {
                         console.log('env id ' + env.id + ' :: external modules not yet resolved : ' + unresolvedNames.join(', '));
                     }
-                    var elapsed = performance.now() - _loadMark;
+                    var elapsed = performance.now() - env.loadMark;
                     if (elapsed > env.externalTimeout) {
                         console.log('Aborting automatic resolve of external resources. The following external resources are not yet resolved: ' + unresolvedNames.join(', '));
                     } else {
@@ -856,7 +891,7 @@
                     if (env.debug) _resolveDebug(env, 'Resource \'' + resource.name + '\' already resolved');
                     return true;
                 }
-                if (!resource.defined) {
+                if (!resource.defined && !resource.isRemote) {
                     if (env.debug) _resolveDebug(env, 'Resource \'' + resource.name + '\' not yet defined');
                     return false;
                 }
@@ -867,7 +902,7 @@
                 if (result === undefined) {
                     if (resource.resolving) {
                         if (env.debug) _resolveDebug(env, resPrefix + 'Already resolving. Exiting to avoid recursive resolve');
-                        return true;
+                        return false;
                     }
                     resource.resolving = true;
 
@@ -881,10 +916,22 @@
                         for (var i = 0 ; i < dependsOnCnt; i++) {
                             var dependsOnResource = resource.dependsOn[i];
                             if (dependsOnResource.resolved) {
-                                definitionArgs.push(dependsOnResource.handle);
+                                if (dependsOnResource.isUrlResource) {
+                                    if (resource.isLiteral) {
+                                        resource.definition = dependsOnResource.handle;
+                                    }
+                                } else {
+                                    definitionArgs.push(dependsOnResource.handle);
+                                }
                             } else if (_resolve(env, dependsOnResource)) {
                                 _removeItem(dependsOnResource.pendingDependentResources, resource);
-                                definitionArgs.push(dependsOnResource.handle);
+                                if (dependsOnResource.isUrlResource) {
+                                    if (resource.isLiteral) {
+                                        resource.definition = dependsOnResource.handle;
+                                    }
+                                } else {
+                                    definitionArgs.push(dependsOnResource.handle);
+                                }
                             } else {
                                 if (env.debug) {
                                     _resolveDebug(env, resPrefix + 'Could not resolve required resource ' + dependsOnResource.name + '. Aborting resolve');
@@ -899,7 +946,7 @@
                     if (resource.isUrlResource) {
                         if ($ == null) {
                             throw new Error('Cannot result URL resource until jQuery is loaded');
-                            return;
+                            return false;
                         }
 
                         $.ajax({
@@ -921,7 +968,9 @@
                         var isLoaded = false;
                         var temp_handle = null;
                         if (resource.hasTest) {
-                            isLoaded = resource.test();
+                            if (isLoaded = resource.test()) {
+                                temp_handle = resource.definition();
+                            }
                         } else if (resource.isLiteral) {
                             isLoaded = window.hasOwnProperty(resource.name);
                         } else {
@@ -975,7 +1024,7 @@
                 }
 
                 var lng = resource.pendingDependentResources.length;
-                if (lng > 0) {
+                if (env.immediateResolve && lng > 0) {
                     if (env.debug) _resolveDebug(env, resPrefix + 'Attempting to resolve dependent resources');
                     env.resolveDepth++;
                     var i = 0;
@@ -1006,8 +1055,20 @@
                     env.resolveDepth--;
                 }
 
+                if (result != null) {
+                    // Ajax result. Attempt to resolve all anonymous actions
+                    for (i = env.pendingActions.length - 1; i >= 0; i--) {
+                        _resolve(env, env.pendingActions[i]);
+                    }
+                }
+
                 resource.resolving = false;
                 env.resolveDepth--;
+
+                if (resource.isAnonymousAction) {
+                    _removeItem(env.pendingActions, resource);
+                }
+
                 return true;
             }
 
@@ -1027,11 +1088,11 @@
                 var url_resource = null;
 
                 if (isRemote) {
-                    url_lc = (url || '').toLowerCase();
+                    var url_lc = (url || '').toLowerCase();
                     resource = _getResource(env, resourceName);
-                    url_resource = _getResource(env, '__URL::' + url_c);
+                    url_resource = _getResource(env, '__URL::' + url_lc);
 
-                    if (!resource.defined) {
+                    if (!resource.defined && _isEmpty(resource.url)) {
                         // First time _define ever called for this resource name
                         if (url_resource.resolved) {
                             // URL has already been loaded
@@ -1127,7 +1188,7 @@
                 resource.isAnonymousAction = isAnonymousAction;
                 resource.definition = definition;
                 resource.isLiteral = isLiteral;
-                resource.defined = true;
+                resource.defined = resource.defined || !isRemote;
                 resource.url = url;
                 resource.isRemote = isRemote;
                 resource.thisArg = thisArg;
@@ -1159,10 +1220,14 @@
                     }
                 }
 
-                if (pendingDependsOnCnt == 0) {
+                if (pendingDependsOnCnt == 0 || (isAnonymousAction && !env.immediateResolve)) {
                     // No pending dependencies. Can resolve immediately.
                     if (isAnonymousAction || env.immediateResolve) {
                         var resolved = _resolve(env, resource);
+                        if (!resolved && isAnonymousAction) {
+                            env.pendingActions.push(resource);
+                        }
+
                         if (!resolved && resource.isExternal && !env.externalPending) {
                             env.loadMark = performance.now();  // reset loading timer to most recent definition of external resource
                             env.externalPending = true;

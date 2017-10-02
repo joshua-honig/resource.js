@@ -1,4 +1,6 @@
-﻿(function () {
+﻿/// <reference path="_references.js" /> 
+
+(function () {
 
     function objectModel_base(constants) {
 
@@ -147,7 +149,7 @@
 
         var currentKey = window.resource.key;
         assert.ok(window[currentKey] != null, 'resource-js version defined');
-         
+
         assert.ok(resource.hasOwnProperty('anonymousIndex'), 'resource.anonymousIndex is defined');
         assert.ok(resource.hasOwnProperty('id'), 'resource.id is defined');
         assert.ok(resource.hasOwnProperty('externalPending'), 'resource.externalPending is defined');
@@ -198,7 +200,7 @@
     QUnit.test('require([moduleName])', function (assert) {
         /// <param name="assert" type="QUnit.Assert" /> 
         resource.reset();
-           
+
         var def = { foo: 'bar' };
         define('a', def);
         assert.strictEqual(require('a'), def, 'require([moduleName]) returns object literal definition');
@@ -842,9 +844,9 @@
             console.log('e.name = \'' + e.name + '\'');
             anonResolved = true;
         });
-         
+
         resource.listUnresolved();
-         
+
         define('a', { name: 'module a' });
         assert.ok(resource.isResolved('a'), 'a is now resolved');
         assert.ok(resource.isResolved('d'), 'd is now resolved');
@@ -867,7 +869,188 @@
         console.log('-----------------------------------------------------------');
     });
 
-    QUnit.module('validation');
+    QUnit.module('define.external');
+
+    QUnit.test('define.external with alias', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />  
+        resource.reset();
+
+        var jqInfo1 = resource.getResourceInfo('jQuery');
+        assert.strictEqual(jqInfo1, null, 'jQuery is not yet defined');
+        define.external('jQuery');
+
+        var jqInfo2 = resource.getResourceInfo('jQuery');
+        assert.ok(jqInfo2.defined, 'jQuery is now defined');
+        assert.ok(jqInfo2.isExternal, 'jQuery is external');
+        assert.strictEqual(jqInfo2.handle, window.jQuery, 'jQuery resource handle matches global varaible');
+
+        define.external('$', 'jQuery');
+        var info = resource.getResourceInfo('$');
+        assert.ok(info.defined, '$ resource is defined');
+        assert.ok(info.isExternal, '$ resource is external');
+        assert.strictEqual(info.handle, window.jQuery, '$ resource handle matches global jQuery varaible');
+    });
+
+    QUnit.test('define.external with source callback', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />  
+        resource.reset();
+
+        // Simple factory function. Invoke until not null
+        define.external(
+            'span-foo',
+            function () {
+                console.log('Looking for #span-foo')
+                return document.querySelector('#span-foo');
+            }
+        );
+
+        var done = assert.async();
+
+        setTimeout(function () {
+            var $fixture = $("#qunit-fixture");
+            $fixture.append($("<span id='span-foo'>Foo!</span>"));
+
+            setTimeout(() => {
+                var spanFoo = require('span-foo');
+                assert.notStrictEqual(spanFoo, null, 'spanFoo is now defined');
+                assert.ok(spanFoo instanceof HTMLSpanElement, 'spanFoo is a span element');
+
+                done();
+            }, 200);
+        }, 100);
+    });
+
+    QUnit.test('define.external with source and test callbacks', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />  
+        resource.reset();
+
+        // Factory function with test function. Invoke until test function returns true
+        define.external(
+            'some-lib',
+            function () {
+                function somLibFunc(value) { return value; };
+                return somLibFunc;
+            },
+            function () {
+                return window['org.some.lib'] != null;
+            }
+        );
+
+        var done = assert.async();
+
+        setTimeout(function () {
+            window['org.some.lib'] = {};
+
+            setTimeout(() => {
+                var somLibFunc = require('some-lib');
+                assert.ok(somLibFunc instanceof Function, 'somLibFunc is a function');
+                done();
+            }, 200);
+        }, 100);
+    });
+
+    QUnit.module('lazy loading');
+
+    QUnit.test('basic lazy loading', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />  
+        resource.reset();
+        resource.immediateResolve = false;
+        resource.debug = true;
+
+        //      a
+        //    / | \
+        //   b  c  d
+        //   \ /
+        //    e 
+        //    |
+        //  Action
+
+        define('a', createResourceInit('a'));
+
+        var aInfo = resource.getResourceInfo('a');
+        assert.ok(aInfo.defined, 'a is defined');
+        assert.notOk(aInfo.resolved, 'a is *NOT* resolved');
+
+        define('b', ['a'], createResourceInit('b'));
+        define('c', ['a'], createResourceInit('c'));
+        define('d', ['a'], createResourceInit('d'));
+        define('e', ['b', 'c'], createResourceInit('e'));
+
+        aInfo = resource.getResourceInfo('a');
+        assert.notOk(aInfo.resolved, 'a is still *NOT* resolved');
+
+        require('e', function (e) {
+            assert.strictEqual(e.name, 'e', 'verify injected \'e\' module');
+        });
+
+        aInfo = resource.getResourceInfo('a');
+        assert.ok(aInfo.resolved, 'a is now resolved');
+
+        var dInfo = resource.getResourceInfo('d');
+        assert.notOk(dInfo.resolved, 'd is still *NOT* resolved');
+    });
+
+
+    QUnit.test('remote file lazy loading', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />  
+        resource.reset();
+        resource.immediateResolve = false;
+        resource.debug = true;
+
+        //               lib-a                  - remote-lib-a.js
+        //             /    |    \
+        //   lib-b-foo  lib-b-bar  lib-b-baz    - remote-lib-b.js
+        //   \ /
+        //    |         my-resource.json        - my-resource.json
+        //    |             |
+        //  local __________/                   - Local
+        //    |  /
+        //  Action
+
+        define.remote('lib-a', 'js/lib-a.js');
+
+        // Make QUnit wait for all this to complete
+        var aDone = assert.async();
+        var bDone = assert.async();
+        var jsonDone = assert.async();
+        var anonDone = assert.async();
+
+        var libAInfo = resource.getResourceInfo('lib-a');
+        assert.notOk(libAInfo.defined, 'lib-a not yet defined');
+        assert.notOk(libAInfo.resolved, 'lib-a not yet resolved');
+
+        define.remote('lib-b-foo', 'js/lib-b.js');
+        define.remote('lib-b-bar', 'js/lib-b.js');
+        define.remote('my-resource-1.0.0', 'js/my-resource.json', true);
+
+        define('local', ['lib-b-foo'], createResourceInit('local'));
+
+        require(['local', 'my-resource-1.0.0'], function (local, myrsrc) {
+            assert.strictEqual(local.name, 'local', 'verify injected \'local\' module');
+            assert.strictEqual(myrsrc.name, 'my-resource', 'verify injected \'my-resource\' module');
+
+            var libAInfo = resource.getResourceInfo('lib-a');
+            assert.ok(libAInfo.resolved, 'lib-a now resolved');
+
+            var libBFoo = resource.getResourceInfo('lib-b-foo');
+            var libBBar = resource.getResourceInfo('lib-b-bar');
+            assert.ok(libBFoo.defined, 'lib-b-foo is defined');
+            assert.ok(libBFoo.resolved, 'lib-b-foo is resolved');
+
+            assert.ok(libBBar.defined, 'lib-b-bar is defined');
+            assert.notOk(libBBar.resolved, 'lib-b-bar is NOT resolved');
+
+            define.remote('lib-b-baz', 'js/lib-b.js');
+
+            anonDone();
+        });
+          
+        require('lib-a', aDone);
+        require('lib-b-foo', bDone);
+        require('my-resource-1.0.0', jsonDone);
+    });
+
+    QUnit.module('lazy loading');
 
     QUnit.test('Prevent redefinition', function (assert) {
         /// <param name="assert" type="QUnit.Assert" /> 
@@ -949,7 +1132,7 @@
 
     QUnit.test('resource.destroy', function (assert) {
         /// <param name="assert" type="QUnit.Assert" />         
-        
+
         define('foo-1', { name: 'foo-1' });
         assert.ok(resource.isDefined('foo-1'));
         resource.destroy('foo-1');
@@ -957,6 +1140,6 @@
         assert.strictEqual(resource.getResourceInfo('foo-1'), null, 'destroy removes module info');
 
         // Can redfine
-        define('foo-1', { name: 'foo-1' }); 
+        define('foo-1', { name: 'foo-1' });
     });
 })();
