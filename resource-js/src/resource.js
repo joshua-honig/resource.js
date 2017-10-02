@@ -1153,6 +1153,7 @@
                     if (resource.defined) {
                         if (isExternal && resource.isExternal && resource.isInferred) {
                             // Ok, confirming a previously inferred external resource;
+                            resource.isInferred = false;
                             return;
                         }
 
