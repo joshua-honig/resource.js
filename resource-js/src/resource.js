@@ -45,9 +45,8 @@
                 if (typeof object != 'object') return false;
                 return (object instanceof Array);
             }
-
-
-            const NUM_NAMES = 'zero|one|two|three|four|five|six|seven|eight'.split('|');
+             
+            var NUM_NAMES = 'zero|one|two|three|four|five|six|seven|eight'.split('|');
 
             var validate = {
                 isNumber: function (value, min, max, argName, throwOnFalse) {
@@ -94,7 +93,7 @@
                     if (throwIfInvalid) throw new Error('Provided value is not a recognized jQuery module');
                     return;
                 } else {
-                    let versionParts = value.fn.jquery.split('.');
+                    var versionParts = value.fn.jquery.split('.');
                     // Require at least jQuery version 1.11
                     if (((+versionParts[0]) > 1) || ((+versionParts[1]) >= 11)) {
                         $ = value;
@@ -751,7 +750,7 @@
                 }
 
                 var allLines = [];
-                var fnLog = console.log;
+                var fnLog = function (line) { console.log(line); };
                 if (returnText) {
                     fnLog = function (line) { allLines.push(line); };
                 }
@@ -1115,7 +1114,7 @@
                             dependsOn.push(url_resource.name);
                         }
                     } else {
-                        let isRedefinition = false;
+                        var isRedefinition = false;
                         // _define has been called before
                         if (!_isEmpty(resource.url)) {
                             // define.remote has been called before

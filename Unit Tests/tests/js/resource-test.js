@@ -2,6 +2,17 @@
 
 (function () {
 
+    // IE polyfill for function.name
+    function testFunc() { };
+
+    if (testFunc.name == undefined) {
+        Object.defineProperty(Function.prototype, 'name', {
+            get: function () {
+                return (/(^\s*function\s+)(\w+)/.exec(this.toString()) || [])[2];
+            }
+        });
+    }
+     
     function objectModel_base(constants) {
 
         function Person(firstName, lastName, age) {
@@ -910,7 +921,7 @@
             var $fixture = $("#qunit-fixture");
             $fixture.append($("<span id='span-foo'>Foo!</span>"));
 
-            setTimeout(() => {
+            setTimeout(function () {
                 var spanFoo = require('span-foo');
                 assert.notStrictEqual(spanFoo, null, 'spanFoo is now defined');
                 assert.ok(spanFoo instanceof HTMLSpanElement, 'spanFoo is a span element');
@@ -941,7 +952,7 @@
         setTimeout(function () {
             window['org.some.lib'] = {};
 
-            setTimeout(() => {
+            setTimeout(function () {
                 var somLibFunc = require('some-lib');
                 assert.ok(somLibFunc instanceof Function, 'somLibFunc is a function');
                 done();
@@ -1044,7 +1055,7 @@
 
             anonDone();
         });
-          
+
         require('lib-a', aDone);
         require('lib-b-foo', bDone);
         require('my-resource-1.0.0', jsonDone);

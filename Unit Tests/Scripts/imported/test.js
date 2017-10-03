@@ -1,3 +1,5 @@
-﻿/// <reference path="resource.js" />
+﻿
 
-resource.automaticExternals = false;
+function foo() {
+    
+} 
