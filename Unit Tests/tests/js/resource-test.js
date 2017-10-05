@@ -2,17 +2,15 @@
 
 (function () {
 
-    // IE polyfill for function.name
-    function testFunc() { };
-
-    if (testFunc.name == undefined) {
+    // IE polyfill for function.name 
+    if ((function f() { }).name == undefined) {
         Object.defineProperty(Function.prototype, 'name', {
             get: function () {
                 return (/(^\s*function\s+)(\w+)/.exec(this.toString()) || [])[2];
             }
         });
     }
-     
+
     function objectModel_base(constants) {
 
         function Person(firstName, lastName, age) {

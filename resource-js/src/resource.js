@@ -2,8 +2,6 @@
 
 (function () {
 
-    window.fooBar = { baz: 22 };
-
     var RESOURCE_JS_VERSION = '1.0.0';
     var RESOURCE_JS_KEY = '__resource-js-' + RESOURCE_JS_VERSION;
 
@@ -1261,4 +1259,3 @@
         })();
     }
 })();
-
