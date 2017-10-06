@@ -48,6 +48,7 @@
   <ItemGroup>
     <Content Include="packages.config" />
     <None Include="Scripts\jquery-3.2.1.intellisense.js" />
+    <Content Include="resource.js.png" />
     <Content Include="Scripts\jquery-3.2.1.js" />
     <Content Include="Scripts\jquery-3.2.1.min.js" />
     <Content Include="Scripts\jquery-3.2.1.slim.js" />

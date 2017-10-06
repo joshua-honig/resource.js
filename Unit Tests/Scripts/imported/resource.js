@@ -2,9 +2,7 @@
 
 (function () {
 
-    window.fooBar = { baz: 22 };
-
-    var RESOURCE_JS_VERSION = '1.0.0';
+    var RESOURCE_JS_VERSION = '0.1.0';
     var RESOURCE_JS_KEY = '__resource-js-' + RESOURCE_JS_VERSION;
 
     if (!window[RESOURCE_JS_KEY]) {
@@ -80,8 +78,8 @@
 
 
             // Static private fields
-            var _environmentIndex = 1;
-            var _namedEnvironments = {};
+            var _contextIndex = 1;
+            var _namedContexts = {};
 
             var $ = null;
 
@@ -107,7 +105,7 @@
 
             function resource() { };
             var resource_module = new resource();
-            resource_module.Environment = Environment;
+            resource_module.Context = Context;
 
             // CLASSES
             function Resource(name) {
@@ -141,9 +139,9 @@
                 this.pendingDependentActions = [];
             }
 
-            function Environment(_environment) {
+            function Context(_context) {
                 /// <signature>
-                ///   <summary>Create new environments through the Environment.create() factory method</summary>
+                ///   <summary>Create new contexts through the Context.create() factory method</summary>
                 /// </signature>
                 /// <field name="id" type="Number" integer="true" />
                 /// <field name="name" type="String" /> 
@@ -155,42 +153,42 @@
 
                 Object.defineProperties(this, {
                     // read only : 
-                    id: { get: function () { return _environment.id; } },
-                    name: { get: function () { return _environment.id; } },
-                    externalPending: { get: function () { return _environment.externalPending; } },
-                    anonymousIndex: { get: function () { return _environment.anonymousIndex; } },
+                    id: { get: function () { return _context.id; } },
+                    name: { get: function () { return _context.id; } },
+                    externalPending: { get: function () { return _context.externalPending; } },
+                    anonymousIndex: { get: function () { return _context.anonymousIndex; } },
 
                     // simple read-write
                     debug: {
-                        get: function () { return _environment.debug; },
-                        set: function (value) { _environment.debug = (value === true); }
+                        get: function () { return _context.debug; },
+                        set: function (value) { _context.debug = (value === true); }
                     },
                     ignoreRedefine: {
-                        get: function () { return _environment.ignoreRedefine; },
-                        set: function (value) { _environment.ignoreRedefine = (value === true); }
+                        get: function () { return _context.ignoreRedefine; },
+                        set: function (value) { _context.ignoreRedefine = (value === true); }
                     },
                     automaticExternals: {
-                        get: function () { return _environment.automaticExternals; },
-                        set: function (value) { _environment.automaticExternals = (value === true); }
+                        get: function () { return _context.automaticExternals; },
+                        set: function (value) { _context.automaticExternals = (value === true); }
                     },
                     immediateResolve: {
-                        get: function () { return _environment.immediateResolve; },
-                        set: function (value) { _environment.immediateResolve = (value === true); }
+                        get: function () { return _context.immediateResolve; },
+                        set: function (value) { _context.immediateResolve = (value === true); }
                     },
 
                     // validated read-write
                     externalInterval: {
-                        get: function () { return _environment.externalInterval },
+                        get: function () { return _context.externalInterval },
                         set: function (value) {
                             if (!validate.isNumber(value, 10, null, 'externalInterval', true)) return;
-                            _environment.externalInterval = value;
+                            _context.externalInterval = value;
                         }
                     },
                     externalTimeout: {
-                        get: function () { return _environment.externalTimeout },
+                        get: function () { return _context.externalTimeout },
                         set: function (value) {
                             if (!validate.isNumber(value, 10, null, 'externalTimeout', true)) return;
-                            _environment.externalTimeout = value;
+                            _context.externalTimeout = value;
                         }
                     },
                     'jQuery': {
@@ -203,24 +201,24 @@
                     key: { get: function () { return RESOURCE_JS_KEY; } }
                 });
 
-                this.define = _environment.define.bind(_environment);
-                this.define.remote = _environment.define_remote.bind(_environment);
-                this.define.external = _environment.define_external.bind(_environment);
+                this.define = _context.define.bind(_context);
+                this.define.remote = _context.define_remote.bind(_context);
+                this.define.external = _context.define_external.bind(_context);
 
-                this.require = _environment.require.bind(_environment);
+                this.require = _context.require.bind(_context);
 
-                this.getResource = _environment.getResourceHandle.bind(_environment);
-                this.getResourceInfo = _environment.getResourceInfoByName.bind(_environment);
-                this.getResources = _environment.getResources.bind(_environment);
-                this.getPendingActions = _environment.getPendingActions.bind(_environment);
-                this.getPendingResources = _environment.getPendingResources.bind(_environment);
-                this.getUndefinedResources = _environment.getUndefinedResources.bind(_environment);
-                this.isDefined = _environment.isDefined.bind(_environment);
-                this.isResolved = _environment.isResolved.bind(_environment);
-                this.resolve = _environment.resolve.bind(_environment);
-                this.reset = _environment.reset.bind(_environment);
-                this.listUnresolved = _environment.list_unresolved.bind(_environment);
-                this.destroy = _environment.destroy.bind(_environment);
+                this.getResource = _context.getResourceHandle.bind(_context);
+                this.getResourceInfo = _context.getResourceInfoByName.bind(_context);
+                this.getResources = _context.getResources.bind(_context);
+                this.getPendingActions = _context.getPendingActions.bind(_context);
+                this.getPendingResources = _context.getPendingResources.bind(_context);
+                this.getUndefinedResources = _context.getUndefinedResources.bind(_context);
+                this.isDefined = _context.isDefined.bind(_context);
+                this.isResolved = _context.isResolved.bind(_context);
+                this.resolve = _context.resolve.bind(_context);
+                this.reset = _context.reset.bind(_context);
+                this.listUnresolved = _context.list_unresolved.bind(_context);
+                this.destroy = _context.destroy.bind(_context);
 
                 var me = this;
                 Object.defineProperties(this.define.external, {
@@ -234,28 +232,28 @@
                     }
                 });
 
-                this.Environment = Environment;
+                this.Context = Context;
             }
 
 
-            Environment.create = function (name, force) {
+            Context.create = function (name, force) {
 
                 var isNamed = !_isEmpty(name);
-                if (isNamed && (force !== true) && (_namedEnvironments.hasOwnProperty(name))) {
-                    throw new Error('Environment \'' + name + '\' is already defined');
+                if (isNamed && (force !== true) && (_namedContexts.hasOwnProperty(name))) {
+                    throw new Error('Context \'' + name + '\' is already defined');
                     return;
                 }
 
                 // Private instance with all required state
-                var _instance = new _Environment(name);
+                var _instance = new _Context(name);
 
                 // Public proxy 
-                var instance = new Environment(_instance);
+                var instance = new Context(_instance);
 
                 if (isNamed) {
-                    _namedEnvironments[instance.name] = instance;
+                    _namedContexts[instance.name] = instance;
                 } else {
-                    // Default environment. Export as window.res / window.resource
+                    // Default context. Export as window.res / window.resource
                     window.res = window.resource = instance;
 
                     // Backwards compatibility:
@@ -266,14 +264,14 @@
                 return instance;
             }
 
-            Environment.get = function (name) {
-                /// <returns type="Environment" />
-                return _namedEnvironments[name];
+            Context.get = function (name) {
+                /// <returns type="Context" />
+                return _namedContexts[name];
             };
 
 
             // API FUNCTIONS
-            function _Environment(name) {
+            function _Context(name) {
                 /// <field name="id" type="Number" integer="true" />
                 /// <field name="name" type="String" />
                 /// <field name="externalInterval" type="Number" />
@@ -288,7 +286,7 @@
                 /// <field name="automaticExternals" type="Boolean" /> 
                 /// <field name="immediateResolve" type="Boolean" /> 
 
-                this.id = _environmentIndex++;
+                this.id = _contextIndex++;
                 this.name = name;
                 this.resources = {};
                 this.resolveDepth = 0;
@@ -302,12 +300,12 @@
                 this.externalTimeout = 10000;
             }
 
-            _Environment.prototype.debug = false;
-            _Environment.prototype.ignoreRedefine = true;
-            _Environment.prototype.automaticExternals = true;
-            _Environment.prototype.immediateResolve = true;
+            _Context.prototype.debug = false;
+            _Context.prototype.ignoreRedefine = true;
+            _Context.prototype.automaticExternals = true;
+            _Context.prototype.immediateResolve = true;
 
-            _Environment.prototype.define = function (resourceName) {
+            _Context.prototype.define = function (resourceName) {
                 /// <signature>
                 ///   <summary>Define a new resource without any dependencies</summary>
                 ///   <param name="resourceName" type="String">The unique key or name of the resource</param>
@@ -356,7 +354,7 @@
                 _define(this, resourceName, dependsOn, definition, isLiteral);
             };
 
-            _Environment.prototype.define_remote = function (resourceName, url, isLiteral) {
+            _Context.prototype.define_remote = function (resourceName, url, isLiteral) {
                 /// <signature>
                 ///   <summary>Register the remote source of a lazy-loaded resource</summary>
                 ///   <param name="resourceName" type="String">The unique key or name of the resource</param>
@@ -377,7 +375,7 @@
                 _define(this, resourceName, [], null, isLiteral, null, false, null, url);
             };
 
-            _Environment.prototype.define_external = function (resourceName, source, test) {
+            _Context.prototype.define_external = function (resourceName, source, test) {
                 /// <signature>
                 ///   <summary>Define an external resource reference based on the name of a global variable</summary>
                 ///   <param name="resourceName" type="String">The unique key or name of the resource</param> 
@@ -428,7 +426,7 @@
                 _define(this, resourceName, [], source, false, null, true, test, null);
             };
 
-            _Environment.prototype.destroy = function (resourceName) {
+            _Context.prototype.destroy = function (resourceName) {
                 /// <summary>Destroy a named resource by deleting the internal reference to it and calling its destructor (~ method) if defined</summary>
                 /// <param name="resourceName" type="String" />  
                 if (!validate.argCount(arguments, 1, 'destroy', true)) return;
@@ -437,7 +435,7 @@
                 return _destroyResource(this, resourceName);
             };
 
-            _Environment.prototype.require = function (dependsOn) {
+            _Context.prototype.require = function (dependsOn) {
                 /// <signature>
                 ///   <summary>Gets the content or result of a named resource. Returns null if the resource has not been defined or resolved</summary>
                 ///   <param name="resourceName" type="String" /> 
@@ -491,7 +489,7 @@
                 _define(this, null, dependsOn, definition, false, thisArg);
             };
 
-            _Environment.prototype.isDefined = function (resourceName) {
+            _Context.prototype.isDefined = function (resourceName) {
                 /// <summary>Tests whether a resource has been defined</summary>
                 /// <returns type="Boolean" />
                 if (!this.resources.hasOwnProperty(resourceName)) return false;
@@ -499,7 +497,7 @@
                 return resource.defined;
             };
 
-            _Environment.prototype.isResolved = function (resourceName) {
+            _Context.prototype.isResolved = function (resourceName) {
                 /// <summary>Tests whether a resource has been defined and resolved</summary>
                 /// <returns type="Boolean" />
                 if (!this.resources.hasOwnProperty(resourceName)) return false;
@@ -507,7 +505,7 @@
                 return resource.defined && resource.resolved;
             };
 
-            _Environment.prototype.getResourceHandle = function (resourceName, resolve) {
+            _Context.prototype.getResourceHandle = function (resourceName, resolve) {
                 /// <summary>Gets a resource definition by name. Returns null if the resource has not been defined or resolved</summary>
                 /// <param name="resourceName" type="String" />
                 /// <param name="resolve" type="Boolean" optional="true">default false. Whether to attempt to resolve the resource if it is not already resolved </param>
@@ -538,7 +536,7 @@
                 }
             };
 
-            _Environment.prototype.getResources = function (includeAnonymous) {
+            _Context.prototype.getResources = function (includeAnonymous) {
                 /// <summary>Gets a collection of all referenced resource names</summary>
                 /// <param name="includeAnonymous" type="Boolean" optional="true">Whether or not to include pending anonymous functions in the result set</param>
                 var result = {};
@@ -551,7 +549,7 @@
                 return result;
             };
 
-            _Environment.prototype.getResourceInfoByName = function (resourceName, expandDependsOn) {
+            _Context.prototype.getResourceInfoByName = function (resourceName, expandDependsOn) {
                 /// <summary>Gets a copy of externally visible information about a resource. Returns null if the resource has never been defined or referenced.</summary>
                 /// <param name="resourceName" type="String" />
                 /// <param name="expandDependsOn" type="Boolean" optional="true">Default false. true to expand the depends on names to separate resolved and unresolved lists</param>
@@ -560,7 +558,7 @@
                 return this.getResourceInfo(resource, expandDependsOn);
             };
 
-            _Environment.prototype.getResourceInfo = function (resource, expandDependsOn) {
+            _Context.prototype.getResourceInfo = function (resource, expandDependsOn) {
                 /// <summary>Gets a copy of externally visible information about a resource without exposing the actual resource object itself</summary>
                 /// <param name="resource" type="Resource" />
                 /// <param name="expandDependsOn" type="Boolean" optional="true">Default false. true to expand the depends on names to separate resolved and unresolved lists</param>
@@ -609,7 +607,7 @@
                 }
             };
 
-            _Environment.prototype.getPendingActions = function () {
+            _Context.prototype.getPendingActions = function () {
                 /// <summary>Get a list of the pending actions queued with require()</summary>
                 /// <returns type="Array" />
 
@@ -634,7 +632,7 @@
                 return result;
             };
 
-            _Environment.prototype.getPendingResources = function () {
+            _Context.prototype.getPendingResources = function () {
                 /// <summary>Get a list of all resources that have unresolved dependencies</summary>
                 /// <returns type="Array" /> 
                 var result = [];
@@ -649,7 +647,7 @@
                 return result;
             };
 
-            _Environment.prototype.getUndefinedResources = function () {
+            _Context.prototype.getUndefinedResources = function () {
                 /// <summary>Get a list of resource names that have not yet been defined, and the resources or actions which depend on then</summary>
                 var result = [];
 
@@ -678,7 +676,7 @@
                 return result;
             };
 
-            _Environment.prototype.resolve = function () {
+            _Context.prototype.resolve = function () {
                 /// <signature>
                 ///   <summary>Attempt to resolve all unresolved resources</summary>  
                 /// </signature> 
@@ -702,10 +700,10 @@
                 }
             };
 
-            _Environment.prototype.reset = function () {
-                /// <summary>Discards all resource definitions and pending actions and resets the require environment</summary>
+            _Context.prototype.reset = function () {
+                /// <summary>Discards all resource definitions and pending actions and resets the require context</summary>
 
-                this.id = _environmentIndex++;
+                this.id = _contextIndex++;
 
                 for (var h in this.timeoutHandles) {
                     clearTimeout(h);
@@ -724,7 +722,7 @@
                 this.immediateResolve = true;
             };
 
-            _Environment.prototype.list_unresolved = function (returnText) {
+            _Context.prototype.list_unresolved = function (returnText) {
                 /// <signature>
                 ///   <summary>Print a formatted list of any undefined resources, unresolved resources, and unresolved actions to the console</summary>
                 /// </signature>
@@ -807,16 +805,16 @@
 
 
 
-            // CORE FUNCTIONS: These require the environment state as input
-            function _getResource(env, resourceName) {
-                /// <param name="env" type="_Environment" />
+            // CORE FUNCTIONS: These require the context state as input
+            function _getResource(ctx, resourceName) {
+                /// <param name="ctx" type="_Context" />
                 /// <param name="resourceName" type="String">The unique key or name of the resource</param>
                 /// <returns type="Resource" /> 
-                if (!env.resources.hasOwnProperty(resourceName)) {
-                    var resource = env.resources[resourceName] = new Resource(resourceName);
+                if (!ctx.resources.hasOwnProperty(resourceName)) {
+                    var resource = ctx.resources[resourceName] = new Resource(resourceName);
 
-                    if (env.automaticExternals && window.hasOwnProperty(resourceName)) {
-                        if (env.debug) console.log('Using existing global object for resource \'' + resourceName + '\'');
+                    if (ctx.automaticExternals && window.hasOwnProperty(resourceName)) {
+                        if (ctx.debug) console.log('Using existing global object for resource \'' + resourceName + '\'');
                         resource.defined = true;
                         resource.isLiteral = true;
                         resource.isExternal = true;
@@ -825,73 +823,73 @@
                         resource.handle = resource.definition = window[resourceName];
                     }
                 }
-                return env.resources[resourceName];
+                return ctx.resources[resourceName];
             }
 
-            function _getResourceDirect(env, resourceName) {
-                /// <param name="env" type="_Environment" />
+            function _getResourceDirect(ctx, resourceName) {
+                /// <param name="ctx" type="_Context" />
                 /// <param name="resourceName" type="String">The unique key or name of the resource</param>
                 /// <returns type="Resource" />
-                return env.resources[resourceName];
+                return ctx.resources[resourceName];
             }
 
-            function _resolveDebug(env, message) {
-                /// <param name="env" type="_Environment" />
-                console.log(_space(env.resolveDepth * 2) + message);
+            function _resolveDebug(ctx, message) {
+                /// <param name="ctx" type="_Context" />
+                console.log(_space(ctx.resolveDepth * 2) + message);
             }
 
-            function _resolveExternals(env) {
-                /// <param name="env" type="_Environment" />
+            function _resolveExternals(ctx) {
+                /// <param name="ctx" type="_Context" />
 
-                var timeoutHandle = env.timeoutHandle;
+                var timeoutHandle = ctx.timeoutHandle;
                 clearTimeout(timeoutHandle);
-                delete env.timeoutHandles[timeoutHandle];
+                delete ctx.timeoutHandles[timeoutHandle];
 
-                //if (_isEmpty(env.name)) {
-                //    if (env.id != _environmentIndex) return;
+                //if (_isEmpty(ctx.name)) {
+                //    if (ctx.id != _contextIndex) return;
                 //} else {
-                //    var currentEnv = Environment.get(env.name);
-                //    if (currentEnv && currentEnv.id != env.id) return;
+                //    var currentEnv = Context.get(ctx.name);
+                //    if (currentEnv && currentEnv.id != ctx.id) return;
                 //}
 
                 var unresolvedNames = [];
 
-                for (var resourceName in env.resources) {
-                    var resource = env.resources[resourceName];
+                for (var resourceName in ctx.resources) {
+                    var resource = ctx.resources[resourceName];
                     if (resource.isExternal && !resource.resolved) {
-                        if (!_resolve(env, resource)) {
+                        if (!_resolve(ctx, resource)) {
                             unresolvedNames.push(resourceName);
                         }
                     }
                 }
 
                 if (unresolvedNames.length > 0) {
-                    if (env.debug) {
-                        console.log('env id ' + env.id + ' :: external modules not yet resolved : ' + unresolvedNames.join(', '));
+                    if (ctx.debug) {
+                        console.log('ctx id ' + ctx.id + ' :: external modules not yet resolved : ' + unresolvedNames.join(', '));
                     }
-                    var elapsed = performance.now() - env.loadMark;
-                    if (elapsed > env.externalTimeout) {
+                    var elapsed = performance.now() - ctx.loadMark;
+                    if (elapsed > ctx.externalTimeout) {
                         console.log('Aborting automatic resolve of external resources. The following external resources are not yet resolved: ' + unresolvedNames.join(', '));
                     } else {
-                        env.externalPending = true;
-                        env.timeoutHandle = setTimeout(_resolveExternals, env.externalInterval, env);
+                        ctx.externalPending = true;
+                        ctx.timeoutHandle = setTimeout(_resolveExternals, ctx.externalInterval, ctx);
                     }
                 } else {
-                    env.externalPending = false;
+                    ctx.externalPending = false;
                 }
             }
 
-            function _resolve(env, resource, result) {
-                /// <param name="env" type="_Environment" />
+            function _resolve(ctx, resource, result) {
+                /// <param name="ctx" type="_Context" />
                 /// <param name="resource" type="Resource" />
                 /// <param name="result" type="*" />
                 /// <returns type="Boolean" />
                 if (resource.resolved) {
-                    if (env.debug) _resolveDebug(env, 'Resource \'' + resource.name + '\' already resolved');
+                    if (ctx.debug) _resolveDebug(ctx, 'Resource \'' + resource.name + '\' already resolved');
                     return true;
                 }
                 if (!resource.defined && !resource.isRemote) {
-                    if (env.debug) _resolveDebug(env, 'Resource \'' + resource.name + '\' not yet defined');
+                    if (ctx.debug) _resolveDebug(ctx, 'Resource \'' + resource.name + '\' not yet defined');
                     return false;
                 }
 
@@ -900,14 +898,14 @@
 
                 if (result === undefined) {
                     if (resource.resolving) {
-                        if (env.debug) _resolveDebug(env, resPrefix + 'Already resolving. Exiting to avoid recursive resolve');
+                        if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Already resolving. Exiting to avoid recursive resolve');
                         return false;
                     }
                     resource.resolving = true;
 
-                    if (env.debug) _resolveDebug(env, resPrefix + 'Attempting to resolve');
+                    if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Attempting to resolve');
 
-                    env.resolveDepth++;
+                    ctx.resolveDepth++;
                     var definitionArgs = [];
                     var dependsOnCnt = resource.dependsOn.length;
 
@@ -922,7 +920,7 @@
                                 } else {
                                     definitionArgs.push(dependsOnResource.handle);
                                 }
-                            } else if (_resolve(env, dependsOnResource)) {
+                            } else if (_resolve(ctx, dependsOnResource)) {
                                 _removeItem(dependsOnResource.pendingDependentResources, resource);
                                 if (dependsOnResource.isUrlResource) {
                                     if (resource.isLiteral) {
@@ -932,12 +930,12 @@
                                     definitionArgs.push(dependsOnResource.handle);
                                 }
                             } else {
-                                if (env.debug) {
-                                    _resolveDebug(env, resPrefix + 'Could not resolve required resource ' + dependsOnResource.name + '. Aborting resolve');
+                                if (ctx.debug) {
+                                    _resolveDebug(ctx, resPrefix + 'Could not resolve required resource ' + dependsOnResource.name + '. Aborting resolve');
                                 }
                                 // Don't bother resolving any additional resources 
                                 resource.resolving = false;
-                                return (env.resolveDepth--, false);
+                                return (ctx.resolveDepth--, false);
                             }
                         }
                     }
@@ -951,11 +949,11 @@
                         $.ajax({
                             url: resource.url,
                             success: function (data) {
-                                _resolve(env, resource, data);
+                                _resolve(ctx, resource, data);
                             },
                             error: function () {
                                 resource.resolving = false;
-                                env.resolveDepth--;
+                                ctx.resolveDepth--;
                                 throw new Error('Failed to load remote resource from url \'' + resource.url + '\'');
                             }
                         });
@@ -980,7 +978,7 @@
                         if (!isLoaded) {
                             // External resource not yet loaded 
                             resource.resolving = false;
-                            return (env.resolveDepth--, false);
+                            return (ctx.resolveDepth--, false);
                         }
 
                         if (temp_handle != null) {
@@ -989,17 +987,17 @@
                             resource.handle = resource.definition = window[resource.name];
                         }
                     } else if (resource.isAnonymousAction) {
-                        if (env.debug) _resolveDebug(env, resPrefix + 'Executing anonymous action');
+                        if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Executing anonymous action');
                         resource.definition.apply(resource.thisArg, definitionArgs);
                     } else if (resource.isLiteral) {
-                        if (env.debug) _resolveDebug(env, resPrefix + 'Assigning literal resource definition');
+                        if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Assigning literal resource definition');
                         resource.handle = resource.definition;
                     } else {
-                        if (env.debug) _resolveDebug(env, resPrefix + 'Executing resource definition');
+                        if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Executing resource definition');
                         resource.handle = resource.definition.apply(null, definitionArgs);
                     }
                 } else {
-                    if (env.debug) _resolveDebug(env, resPrefix + 'Assigning ajax result to URL resource definition');
+                    if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Assigning ajax result to URL resource definition');
                     resource.handle = result;
                 }
 
@@ -1019,60 +1017,60 @@
 
                 if (resource.isAnonymousAction) {
                     resource.resolving = false;
-                    return (env.resolveDepth--, true);
+                    return (ctx.resolveDepth--, true);
                 }
 
                 var lng = resource.pendingDependentResources.length;
-                if (env.immediateResolve && lng > 0) {
-                    if (env.debug) _resolveDebug(env, resPrefix + 'Attempting to resolve dependent resources');
-                    env.resolveDepth++;
+                if (ctx.immediateResolve && lng > 0) {
+                    if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Attempting to resolve dependent resources');
+                    ctx.resolveDepth++;
                     var i = 0;
                     while (resource.pendingDependentResources.length > i) {
                         var dependentResource = resource.pendingDependentResources[i];
-                        if (dependentResource.isResolved || _resolve(env, dependentResource)) {
+                        if (dependentResource.isResolved || _resolve(ctx, dependentResource)) {
                             resource.pendingDependentResources.splice(i, 1);
                         } else {
                             i++;
                         }
                     }
-                    env.resolveDepth--;
+                    ctx.resolveDepth--;
                 }
 
                 var lng = resource.pendingDependentActions.length;
                 if (lng > 0) {
-                    if (env.debug) _resolveDebug(env, resPrefix + 'Attempting to resolve dependent actions for');
-                    env.resolveDepth++;
+                    if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Attempting to resolve dependent actions for');
+                    ctx.resolveDepth++;
                     var i = 0;
                     while (resource.pendingDependentActions.length > i) {
                         var dependentAction = resource.pendingDependentActions[i];
-                        if (dependentAction.isResolved || _resolve(env, dependentAction)) {
+                        if (dependentAction.isResolved || _resolve(ctx, dependentAction)) {
                             resource.pendingDependentActions.splice(i, 1);
                         } else {
                             i++;
                         }
                     }
-                    env.resolveDepth--;
+                    ctx.resolveDepth--;
                 }
 
                 if (result != null) {
                     // Ajax result. Attempt to resolve all anonymous actions
-                    for (i = env.pendingActions.length - 1; i >= 0; i--) {
-                        _resolve(env, env.pendingActions[i]);
+                    for (i = ctx.pendingActions.length - 1; i >= 0; i--) {
+                        _resolve(ctx, ctx.pendingActions[i]);
                     }
                 }
 
                 resource.resolving = false;
-                env.resolveDepth--;
+                ctx.resolveDepth--;
 
                 if (resource.isAnonymousAction) {
-                    _removeItem(env.pendingActions, resource);
+                    _removeItem(ctx.pendingActions, resource);
                 }
 
                 return true;
             }
 
-            function _define(env, resourceName, dependsOn, definition, isLiteral, thisArg, isExternal, test, url) {
-                /// <param name="env" type="_Environment" />
+            function _define(ctx, resourceName, dependsOn, definition, isLiteral, thisArg, isExternal, test, url) {
+                /// <param name="ctx" type="_Context" />
                 /// <param name="resourceName" type="String" />
                 /// <param name="dependsOn" type="Array" elementType="String" />
                 /// <param name="definition" type="*" />
@@ -1088,8 +1086,8 @@
 
                 if (isRemote) {
                     var url_lc = (url || '').toLowerCase();
-                    resource = _getResource(env, resourceName);
-                    url_resource = _getResource(env, '__URL::' + url_lc);
+                    resource = _getResource(ctx, resourceName);
+                    url_resource = _getResource(ctx, '__URL::' + url_lc);
 
                     if (!resource.defined && _isEmpty(resource.url)) {
                         // First time _define ever called for this resource name
@@ -1132,8 +1130,8 @@
                         }
 
                         if (isRedefinition) {
-                            if (env.ignoreRedefine) {
-                                /*if (env.debug)*/  console.log('Ignoring redefinition of resource \'' + resourceName + '\'');
+                            if (ctx.ignoreRedefine) {
+                                /*if (ctx.debug)*/  console.log('Ignoring redefinition of resource \'' + resourceName + '\'');
                                 return;
                             } else {
                                 throw new Error('Resource \'' + resourceName + '\' is already defined');
@@ -1145,10 +1143,10 @@
 
                 if (isAnonymousAction) {
                     // Anonymous action ALWAYS generates a new Resource descriptor
-                    resource = new Resource('Action ' + (env.anonymousIndex++));
+                    resource = new Resource('Action ' + (ctx.anonymousIndex++));
                 } else {
                     // Retrieve the existing Resource descriptor, or generate a new empty one
-                    resource = _getResource(env, resourceName);
+                    resource = _getResource(ctx, resourceName);
                     if (resource.defined) {
                         if (isExternal && resource.isExternal && resource.isInferred) {
                             // Ok, confirming a previously inferred external resource;
@@ -1156,8 +1154,8 @@
                             return;
                         }
 
-                        if (env.ignoreRedefine) {
-                            /*if (env.debug)*/  console.log('Ignoring redefinition of resource \'' + resourceName + '\'');
+                        if (ctx.ignoreRedefine) {
+                            /*if (ctx.debug)*/  console.log('Ignoring redefinition of resource \'' + resourceName + '\'');
                             return;
                         } else {
                             throw new Error('Resource \'' + resourceName + '\' is already defined');
@@ -1206,44 +1204,44 @@
                 var pendingDependsOnCnt = 0;
 
                 for (i = 0; i < lng; i++) {
-                    var dependsOnResource = _getResource(env, dependsOnNames[i]);
+                    var dependsOnResource = _getResource(ctx, dependsOnNames[i]);
                     resource.dependsOn.push(dependsOnResource);
                     if (!dependsOnResource.resolved) {
                         if (isAnonymousAction) {
-                            if (env.debug) console.log('Anonymous action depends on resource ' + dependsOnResource.name + ' which is not yet resolved');
+                            if (ctx.debug) console.log('Anonymous action depends on resource ' + dependsOnResource.name + ' which is not yet resolved');
                             dependsOnResource.pendingDependentActions.unshift(resource);
                         } else {
-                            if (env.debug) console.log('resource ' + resource.name + ' depends on resource ' + dependsOnResource.name + ' which is not yet resolved');
+                            if (ctx.debug) console.log('resource ' + resource.name + ' depends on resource ' + dependsOnResource.name + ' which is not yet resolved');
                             dependsOnResource.pendingDependentResources.unshift(resource);
                         }
                         pendingDependsOnCnt++;
                     }
                 }
 
-                if (pendingDependsOnCnt == 0 || (isAnonymousAction && !env.immediateResolve)) {
+                if (pendingDependsOnCnt == 0 || (isAnonymousAction && !ctx.immediateResolve)) {
                     // No pending dependencies. Can resolve immediately.
-                    if (isAnonymousAction || env.immediateResolve) {
-                        var resolved = _resolve(env, resource);
+                    if (isAnonymousAction || ctx.immediateResolve) {
+                        var resolved = _resolve(ctx, resource);
                         if (!resolved && isAnonymousAction) {
-                            env.pendingActions.push(resource);
+                            ctx.pendingActions.push(resource);
                         }
 
-                        if (!resolved && resource.isExternal && !env.externalPending) {
-                            env.loadMark = performance.now();  // reset loading timer to most recent definition of external resource
-                            env.externalPending = true;
-                            env.timeoutHandle = setTimeout(_resolveExternals, env.externalInterval, env);
+                        if (!resolved && resource.isExternal && !ctx.externalPending) {
+                            ctx.loadMark = performance.now();  // reset loading timer to most recent definition of external resource
+                            ctx.externalPending = true;
+                            ctx.timeoutHandle = setTimeout(_resolveExternals, ctx.externalInterval, ctx);
                         }
                     }
                 }
             }
 
-            function _destroyResource(env, resourceName) {
-                /// <param name="env" type="_Environment" />
+            function _destroyResource(ctx, resourceName) {
+                /// <param name="ctx" type="_Context" />
                 /// <param name="resourceName" type="String" /> 
 
-                if (env.resources.hasOwnProperty(resourceName)) {
-                    var resource = _getResourceDirect(env, resourceName);
-                    delete env.resources[resourceName]
+                if (ctx.resources.hasOwnProperty(resourceName)) {
+                    var resource = _getResourceDirect(ctx, resourceName);
+                    delete ctx.resources[resourceName]
                     if (resource.resolved && resource.handle && _isFunction(resource.handle['~'])) {
                         try {
                             resource.handle['~']();
@@ -1256,9 +1254,8 @@
 
             window[RESOURCE_JS_KEY] = resource_module;
 
-            // Initialize default environment
-            Environment.create();
+            // Initialize default context
+            Context.create();
         })();
     }
 })();
-

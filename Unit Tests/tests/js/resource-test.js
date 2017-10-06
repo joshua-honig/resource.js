@@ -433,7 +433,7 @@
         assert.strictEqual(resource.getPendingResources().length, 0, 'No pending modules');
         assert.strictEqual(resource.getPendingActions().length, 0, 'No pending actions');
         assert.strictEqual(resource.getUndefinedResources().length, 0, 'No undefined module references');
-        assert.strictEqual(resource.id, indexBefore + 1, 'environmentIndex incremented');
+        assert.strictEqual(resource.id, indexBefore + 1, '_contextIndex incremented');
     });
 
     QUnit.test('resolve (all)', function (assert) {

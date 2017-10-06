@@ -1,13 +1,18 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.26730.16
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "resource-js", "resource-js\resource-js.csproj", "{85A1157F-C959-4AC2-A6C5-ED85CBF68AF1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Unit Tests", "Unit Tests\Unit Tests.csproj", "{8379FBA2-F5CD-4975-BE7E-85924A378CD0}"
 EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "deploy", "deploy\deploy.shproj", "{EE9FE622-B66D-44CD-BF34-F37485558BB8}"
+EndProject
 Global
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		deploy\deploy.projitems*{ee9fe622-b66d-44cd-bf34-f37485558bb8}*SharedItemsImports = 13
+	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
@@ -24,5 +29,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E7443282-3169-4EB3-B0DF-55C10F443206}
 	EndGlobalSection
 EndGlobal
