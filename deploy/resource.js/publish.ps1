@@ -1,12 +1,10 @@
-﻿$thisDir = (Get-Item .).FullName
+﻿$thisDir = (Get-Item (Get-Location)).FullName
 Write-Host "Current dir: $thisDir"
 
 $xNuspec = New-Object xml
 $xNuspec.Load('resource.js.nuspec')
-$xPackage = $xNuspec.DocumentElement
-$xVersion = $xPackage.SelectSingleNode('metadata/id')
-
-$sVersion = $xVersion.InnerText.Trim()
+$xPackage = $xNuspec.DocumentElement 
+$version = $xPackage.metadata.version.Trim()
 
 $packageDir = Join-Path $thisDir package
 if (Test-Path $packageDir) {
@@ -26,4 +24,4 @@ nuget pack resource.js.nuspec -NoPackageAnalysis
 
 $nupkgPath = Join-Path $packageDir resource.js.$version.nupkg
 
-nuget push $nupkgPath -ApiKey $apiKey -s nuget.org
+# nuget push $nupkgPath -ApiKey $apiKey -s nuget.org

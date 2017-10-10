@@ -47,6 +47,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="packages.config" />
+    <Content Include="Scripts\jquery-3.2.1.intellisense - Copy.js" />
+    <Content Include="src\test.js" />
     <None Include="Scripts\jquery-3.2.1.intellisense.js" />
     <Content Include="resource.js.png" />
     <Content Include="Scripts\jquery-3.2.1.js" />
@@ -61,6 +63,7 @@
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="src\resource.intellisense.js" />
     <Content Include="src\resource.js" />
   </ItemGroup>
   <PropertyGroup>

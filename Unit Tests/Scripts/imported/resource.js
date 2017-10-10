@@ -43,7 +43,7 @@
                 if (typeof object != 'object') return false;
                 return (object instanceof Array);
             }
-             
+
             var NUM_NAMES = 'zero|one|two|three|four|five|six|seven|eight'.split('|');
 
             var validate = {
@@ -122,13 +122,13 @@
 
                 this.isAnonymousAction = false;
                 this.thisArg = null;
-                this.defined = false;
+                this.isDefined = false;
                 this.isLiteral = false;
                 this.isExternal = false;
                 this.isInferred = false;
                 this.isRemote = false;
-                this.resolved = false;
-                this.resolving = false;
+                this.isResolved = false;
+                this.isResolving = false;
                 this.hasTest = false;
                 this.test = null;
                 this.url = null;
@@ -139,105 +139,247 @@
                 this.pendingDependentActions = [];
             }
 
+            function ResourceInfo(resource) {
+                /// <param name="resource" type="Resource" />
+
+                var isAnonymous = this.isAnonymousAction = resource.isAnonymousAction;
+                this.name = resource.name;
+                this.isDefined = resource.isDefined;
+                this.isResolved = resource.isResolved;
+                this.definition = resource.definition;
+                this.dependsOn = { resolved: [], unresolved: [] };
+
+                if (!isAnonymous) {
+                    this.isExternal = resource.isExternal;
+                    this.isRemote = resource.isRemote;
+                    if (!_isEmpty(resource.url)) this.url = resource.url;
+                    this.handle = resource.handle;
+                    this.pendingDependents = { resources: [], actions: [] };
+                }
+            }
+
+            ResourceInfo.prototype.toString = function () {
+                return '[Resource ' + this.name + ']';
+            };
+
+            ResourceInfo.prototype.format = function () {
+                var result = '\'' + this.name + '\'';
+                if (this.isDefined) {
+                    var unresolved = this.dependsOn.unresolved;
+                    if (unresolved.length > 0) {
+                        result += ' (unresolved dependencies: [' + unresolved.map(getName).sort().join(', ') + '])';
+                    }
+                } else {
+                    var pendingResources = this.pendingDependents.resources;
+                    var pendingActions = this.pendingDependents.actions;
+
+                    if (pendingResources.length > 0) {
+                        result += ' (pending resources: [' + pendingResources.map(getName).sort().join(', ') + '])';
+                    }
+                    if (pendingActions.length > 0) {
+                        result += ' (pending actions: [' + pendingActions.map(getName).sort().join(', ') + '])';
+                    }
+                }
+
+                return result;
+            };
+
+            function ResourceInfoCollection() { }
+
+            ResourceInfoCollection.prototype = [];
+            ResourceInfoCollection.prototype.constructor = ResourceInfoCollection;
+
+            ResourceInfoCollection.prototype.toMap = function () {
+                var result = {};
+                for (var i = 0; i < this.length; i++) {
+                    var info = this[i];
+                    result[info.name] = info;
+                }
+                return result;
+            };
+
+            function compareNames(a, b) { return a.name < b.name ? -1 : 1; };
+
+            function getName(x) { return x.name; }
+
+            function formatSet(lines, list, label) {
+                if (list.length == 0) return;
+                if (!_isEmpty(label)) lines.push(label + ':');
+                list.sort(compareNames);
+                for (var i = 0; i < list.length; i++) {
+                    lines.push(list[i].toString());
+                }
+            }
+
+            ResourceInfoCollection.prototype.format = function () {
+                var resolvedResources = [];
+                var undefinedResources = [];
+                var pendingResources = [];
+                var pendingActions = [];
+
+                for (var i = 0 ; i < this.length; i++) {
+                    var info = this[i];
+                    if (!info.isDefined) {
+                        undefinedResources.push(info);
+                    } else if (info.isResolved) {
+                        resolvedResources.push(info);
+                    } else if (info.isAnonymousAction) {
+                        pendingActions.push(info);
+                    } else {
+                        pendingResources.push(info);
+                    }
+                }
+
+                var lines = [];
+                formatSet(lines, resolvedResources, 'Resolved resources');
+                formatSet(lines, undefinedResources, 'Undefined resources');
+                formatSet(lines, pendingResources, 'Pending resources');
+                formatSet(lines, pendingActions, 'Pending actions');
+                return lines.join('\r\n');
+            }
+
             function Context(_context) {
-                /// <signature>
-                ///   <summary>Create new contexts through the Context.create() factory method</summary>
-                /// </signature>
-                /// <field name="id" type="Number" integer="true" />
-                /// <field name="name" type="String" /> 
-                /// <field name="externalPending" type="Boolean" /> 
-                /// <field name="debug" type="Boolean" /> 
-                /// <field name="ignoreRedefine" type="Boolean" /> 
-                /// <field name="automaticExternals" type="Boolean" /> 
-                /// <field name="immediateResolve" type="Boolean" /> 
+                /// <param name="_context" type="_Context" />
+                if (!(this instanceof Context)) {
+                    throw new TypeError("Context must be called with the new keyword");
+                    return;
+                }
+                if (!(_context instanceof _Context)) {
+                    throw new TypeError("Context instances must be constructed by calling resource.Context.create()");
+                    return;
+                }
 
-                Object.defineProperties(this, {
-                    // read only : 
-                    id: { get: function () { return _context.id; } },
-                    name: { get: function () { return _context.id; } },
-                    externalPending: { get: function () { return _context.externalPending; } },
-                    anonymousIndex: { get: function () { return _context.anonymousIndex; } },
-
-                    // simple read-write
-                    debug: {
-                        get: function () { return _context.debug; },
-                        set: function (value) { _context.debug = (value === true); }
-                    },
-                    ignoreRedefine: {
-                        get: function () { return _context.ignoreRedefine; },
-                        set: function (value) { _context.ignoreRedefine = (value === true); }
-                    },
-                    automaticExternals: {
+                var _external = Object.create(null, {
+                    // read only :  
+                    autoResolve: {
                         get: function () { return _context.automaticExternals; },
-                        set: function (value) { _context.automaticExternals = (value === true); }
-                    },
-                    immediateResolve: {
-                        get: function () { return _context.immediateResolve; },
-                        set: function (value) { _context.immediateResolve = (value === true); }
+                        set: function (value) { _context.automaticExternals = (value === true); },
+                        enumerable: true
                     },
 
                     // validated read-write
-                    externalInterval: {
+                    interval: {
                         get: function () { return _context.externalInterval },
                         set: function (value) {
                             if (!validate.isNumber(value, 10, null, 'externalInterval', true)) return;
                             _context.externalInterval = value;
-                        }
+                        },
+                        enumerable: true
                     },
-                    externalTimeout: {
+                    timeout: {
                         get: function () { return _context.externalTimeout },
                         set: function (value) {
                             if (!validate.isNumber(value, 10, null, 'externalTimeout', true)) return;
                             _context.externalTimeout = value;
-                        }
-                    },
-                    'jQuery': {
-                        get: function () { return $; },
-                        set: function (value) { _setJQueryModule(value, true); }
-                    },
-
-                    //
-                    version: { get: function () { return RESOURCE_JS_VERSION; } },
-                    key: { get: function () { return RESOURCE_JS_KEY; } }
-                });
-
-                this.define = _context.define.bind(_context);
-                this.define.remote = _context.define_remote.bind(_context);
-                this.define.external = _context.define_external.bind(_context);
-
-                this.require = _context.require.bind(_context);
-
-                this.getResource = _context.getResourceHandle.bind(_context);
-                this.getResourceInfo = _context.getResourceInfoByName.bind(_context);
-                this.getResources = _context.getResources.bind(_context);
-                this.getPendingActions = _context.getPendingActions.bind(_context);
-                this.getPendingResources = _context.getPendingResources.bind(_context);
-                this.getUndefinedResources = _context.getUndefinedResources.bind(_context);
-                this.isDefined = _context.isDefined.bind(_context);
-                this.isResolved = _context.isResolved.bind(_context);
-                this.resolve = _context.resolve.bind(_context);
-                this.reset = _context.reset.bind(_context);
-                this.listUnresolved = _context.list_unresolved.bind(_context);
-                this.destroy = _context.destroy.bind(_context);
-
-                var me = this;
-                Object.defineProperties(this.define.external, {
-                    timeout: {
-                        get: function () { return me.externalTimeout; },
-                        set: function (value) { me.externalTimeout = value; }
-                    },
-                    interval: {
-                        get: function () { return me.externalInterval; },
-                        set: function (value) { me.externalInterval = value; }
+                        },
+                        enumerable: true
                     }
                 });
 
-                this.Context = Context;
+                var _config = Object.create(null, {
+                    // validated read-write 
+                    debug: {
+                        get: function () { return _context.debug; },
+                        set: function (value) { _context.debug = (value === true); },
+                        enumerable: true
+                    },
+                    ignoreRedefine: {
+                        get: function () { return _context.ignoreRedefine; },
+                        set: function (value) { _context.ignoreRedefine = (value === true); },
+                        enumerable: true
+                    },
+                    immediateResolve: {
+                        get: function () { return _context.immediateResolve; },
+                        set: function (value) { _context.immediateResolve = (value === true); },
+                        enumerable: true
+                    },
+                    'jQuery': {
+                        get: function () { return $; },
+                        set: function (value) { _setJQueryModule(value, true); },
+                        enumerable: true
+                    },
+
+                    // read only
+                    external: { value: _external, enumerable: true }
+                });
+
+                var _internals = Object.create(null, {
+                    // read only :  
+                    anonymousIndex: {
+                        get: function () { return _context.anonymousIndex; },
+                        enumerable: true
+                    },
+                    externalPending: {
+                        get: function () { return _context.externalPending; },
+                        enumerable: true
+                    },
+                    key: {
+                        value: RESOURCE_JS_KEY,
+                        enumerable: true
+                    }
+                });
+
+                // Properties
+                Object.defineProperties(this, {
+                    id: { get: function () { return _context.id; }, enumerable: true },
+                    name: { get: function () { return _context.name; }, enumerable: true },
+                    config: { value: _config, enumerable: true },
+                    internals: { value: _internals, enumerable: true }
+                });
+
+                var fnList = _context.getResources.bind(_context);
+
+                // Methods
+                Object.defineProperties(this, {
+                    // Core API:
+                    define: { value: _context.define.bind(_context), enumerable: true },
+                    require: { value: _context.require.bind(_context), enumerable: true },
+                    destroy: { value: _context.destroy.bind(_context), enumerable: true },
+
+                    // Extended API:
+                    resolve: { value: _context.resolve.bind(_context), enumerable: true },
+                    reset: { value: _context.reset.bind(_context), enumerable: true },
+
+                    // Descriptive API:
+                    get: { value: _context.getResourceHandle.bind(_context), enumerable: true },
+                    describe: { value: _context.getResourceInfoByName.bind(_context), enumerable: true },
+                    is: {
+                        value: Object.create(null, {
+                            defined: { value: _context.isDefined.bind(_context), enumerable: true },
+                            resolved: { value: _context.isResolved.bind(_context), enumerable: true }
+                        }), enumerable: true
+                    },
+                    list: { value: fnList, enumerable: true },
+                    printUnresolved: { value: _context.list_unresolved.bind(_context), enumerable: true }
+                });
+
+                // Nested methods
+                Object.defineProperties(this.define, {
+                    // Core API:
+                    remote: { value: _context.define_remote.bind(_context), enumerable: true },
+                    external: { value: _context.define_external.bind(_context), enumerable: true }
+                });
+
+                Object.defineProperties(this.list, {
+                    all: { value: function () { return fnList(true, true); }, enumerable: true },
+                    resolved: { value: function () { return fnList(true, true, null, true); }, enumerable: true },
+                    unresolved: { value: function () { return fnList(true, true, null, false); }, enumerable: true },
+                    defined: { value: function () { return fnList(true, true, true); }, enumerable: true },
+                    undefined: { value: function () { return fnList(true, true, false); }, enumerable: true },
+                    resources: { value: function (defined, resolved) { return fnList(true, false, defined, resolved); }, enumerable: true },
+                    actions: { value: function (defined, resolved) { return fnList(false, true, defined, resolved); }, enumerable: true }
+                });
+
+                // static exports
+                Object.defineProperties(this, {
+                    Context: { value: Context, enumerable: true },
+                    version: { value: RESOURCE_JS_VERSION, enumerable: true },
+                    ResourceInfo: { value: ResourceInfo, enumerable: false },
+                    ResourceInfoCollection: { value: ResourceInfoCollection, enumerable: false }
+                });
             }
 
-
             Context.create = function (name, force) {
-
                 var isNamed = !_isEmpty(name);
                 if (isNamed && (force !== true) && (_namedContexts.hasOwnProperty(name))) {
                     throw new Error('Context \'' + name + '\' is already defined');
@@ -264,11 +406,43 @@
                 return instance;
             }
 
-            Context.get = function (name) {
+            Context.get = function (name, create) {
                 /// <returns type="Context" />
-                return _namedContexts[name];
+                if (_isEmpty(name)) {
+                    throw new Error('\'' + name + '\' cannot be empty');
+                    return;
+                }
+
+                var context = _namedContexts[name];
+                if (context == null && create) {
+                    context = Context.create(name, false);
+                }
+                return context;
             };
 
+            Context.destroy = function (name, recursive, strict) {
+                if (_isEmpty(name)) {
+                    throw new Error('\'' + name + '\' cannot be empty');
+                    return;
+                }
+
+                var context = Context.get(name, false);
+                if (context == null) {
+                    if (strict) {
+                        throw new Error('Context \'' + name + '\' does not exist');
+                    }
+                    return;
+                }
+
+                if (recursive) {
+                    var resources = context.list.resolved();
+                    for (var i = 0; i < resources.length; i++) {
+                        if (!resource.isAnonymousAction) {
+                            context.destroy(resource.name);
+                        }
+                    }
+                }
+            };
 
             // API FUNCTIONS
             function _Context(name) {
@@ -306,21 +480,6 @@
             _Context.prototype.immediateResolve = true;
 
             _Context.prototype.define = function (resourceName) {
-                /// <signature>
-                ///   <summary>Define a new resource without any dependencies</summary>
-                ///   <param name="resourceName" type="String">The unique key or name of the resource</param>
-                ///   <param name="definition" type="*">A plain object or function that defines the resource</param>
-                ///   <param name="isLiteral" type="Boolean" optional="true">If definition is a function and literal is true, 
-                ///   the definition will be used as the resource itself, rather than being invoked to obtain the resource</param>
-                /// </signature> 
-                /// <signature>
-                ///   <summary>Define a new resource with one or more dependencies</summary>
-                ///   <param name="resourceName" type="String">The unique key or name of the resource</param>
-                ///   <param name="dependsOn" type="Array" elementType="String">A list of resource names on which this resource depends</param>
-                ///   <param name="definition" type="*">A plain object or function that defines the resource</param>
-                ///   <param name="isLiteral" type="Boolean" optional="true">If definition is a function and literal is true, 
-                ///   the definition will be used as the resource itself, rather than being invoked to obtain the resource</param>
-                /// </signature>
 
                 var argCnt = arguments.length;
                 if (!validate.argCount(arguments, 2, 'define', true)) return;
@@ -490,11 +649,9 @@
             };
 
             _Context.prototype.isDefined = function (resourceName) {
-                /// <summary>Tests whether a resource has been defined</summary>
-                /// <returns type="Boolean" />
                 if (!this.resources.hasOwnProperty(resourceName)) return false;
                 var resource = this.resources[resourceName];
-                return resource.defined;
+                return resource.isDefined;
             };
 
             _Context.prototype.isResolved = function (resourceName) {
@@ -502,7 +659,7 @@
                 /// <returns type="Boolean" />
                 if (!this.resources.hasOwnProperty(resourceName)) return false;
                 var resource = this.resources[resourceName];
-                return resource.defined && resource.resolved;
+                return resource.isDefined && resource.isResolved;
             };
 
             _Context.prototype.getResourceHandle = function (resourceName, resolve) {
@@ -513,7 +670,7 @@
                 var resource = _getResourceDirect(this, resourceName);
 
                 // Resource is neither defined nor registered to a URL. Return null
-                if (!resource.defined && _isEmpty(resource.url)) {
+                if (!resource.isDefined && _isEmpty(resource.url)) {
                     if (resolve) {
                         throw new Error('Resource \'' + resourceName + '\' is not yet defined or resolved');
                         return null;
@@ -523,10 +680,10 @@
                 }
 
                 // Resource is defined and resolved. 
-                if (resource.defined && resource.resolved) return resource.handle;
+                if (resource.isDefined && resource.isResolved) return resource.handle;
 
                 // Resource is not resolved. Attempt to resolve if resolve == true
-                if (!resource.resolved && resolve && _resolve(this, resource)) return resource.handle;
+                if (!resource.isResolved && resolve && _resolve(this, resource)) return resource.handle;
 
                 if (resolve) {
                     throw new Error('Resource \'' + resourceName + '\' is not yet defined or resolved');
@@ -536,17 +693,41 @@
                 }
             };
 
-            _Context.prototype.getResources = function (includeAnonymous) {
-                /// <summary>Gets a collection of all referenced resource names</summary>
-                /// <param name="includeAnonymous" type="Boolean" optional="true">Whether or not to include pending anonymous functions in the result set</param>
-                var result = {};
-                for (var resourceName in this.resources) {
-                    var resource = _getResourceDirect(this, resourceName);
-                    if (resource.isUrlResource) continue;
-                    if (resource.isAnonymousAction && !includeAnonymous) continue;
-                    result[resourceName] = this.getResourceInfo(this.resources[resourceName]);
+            _Context.prototype.getResources = function (includeResources, includeAnonymous, includeDefined, includeResolved, includeUrls) {
+                /// <returns type="ResourceInfoCollection" elementType="ResourceInfo" />
+                var definedFiltered = ('boolean' == typeof includeDefined);
+                var resolvedFiltered = ('boolean' == typeof includeResolved);
+
+                var resultMap = {};
+                var infoMap = {};
+
+                if (includeUrls || (includeResources !== false)) {
+                    for (var resourceName in this.resources) {
+                        var resource = _getResourceDirect(this, resourceName);
+                        if (resource.isUrlResource && !includeUrls) continue;
+                        if (!resource.isUrlResource && (includeResources === false)) continue;
+                        if (definedFiltered && (resource.isDefined != includeDefined)) continue;
+                        if (resolvedFiltered && (resource.isResolved != includeResolved)) continue;
+                        resultMap[resourceName] = infoMap[resourceName] = new ResourceInfo(resource);
+                    }
                 }
-                return result;
+
+                if (includeAnonymous !== false) {
+                    for (var i = 0 ; i < this.pendingActions.length; i++) {
+                        var resource = this.pendingActions[i];
+                        resourceName = resource.name;
+                        if (definedFiltered && (resource.isDefined != includeDefined)) continue;
+                        if (resolvedFiltered && (resource.isResolved != includeResolved)) continue;
+                        resultMap[resourceName] = infoMap[resourceName] = new ResourceInfo(resource);
+                    }
+                }
+
+                _expandResourceInfo(this, infoMap);
+                var returnValues = new ResourceInfoCollection();
+                for (var resourceName in resultMap) {
+                    returnValues.push(resultMap[resourceName]);
+                }
+                return returnValues;
             };
 
             _Context.prototype.getResourceInfoByName = function (resourceName, expandDependsOn) {
@@ -555,125 +736,11 @@
                 /// <param name="expandDependsOn" type="Boolean" optional="true">Default false. true to expand the depends on names to separate resolved and unresolved lists</param>
                 var resource = _getResourceDirect(this, resourceName);
                 if (resource == null) return null;
-                return this.getResourceInfo(resource, expandDependsOn);
-            };
 
-            _Context.prototype.getResourceInfo = function (resource, expandDependsOn) {
-                /// <summary>Gets a copy of externally visible information about a resource without exposing the actual resource object itself</summary>
-                /// <param name="resource" type="Resource" />
-                /// <param name="expandDependsOn" type="Boolean" optional="true">Default false. true to expand the depends on names to separate resolved and unresolved lists</param>
-                var dependsOnNames = [];
-                for (var i = 0; i < resource.dependsOn.length; i++) {
-                    dependsOnNames.push(resource.dependsOn[i].name);
-                }
-
-                var dependsOn = dependsOnNames;
-                if (expandDependsOn) {
-                    dependsOn = { resolved: [], unresolved: [] };
-
-                    var dependsOnCnt = dependsOnNames.length;
-                    for (var j = 0; j < dependsOnCnt; j++) {
-                        var dependsOnName = dependsOnNames[j];
-                        var dependsOnResource = _getResourceDirect(this, dependsOnName);
-
-                        if (dependsOnResource.isUrlResource) {
-                            dependsOnName = dependsOnResource.url;
-                        }
-
-                        if (dependsOnResource.resolved) {
-                            dependsOn.resolved.push(dependsOnResource.name);
-                        } else {
-                            dependsOn.unresolved.push(dependsOnResource.name);
-                        }
-                    }
-                }
-
-                if (resource.isAnonymousAction) {
-                    return {
-                        name: resource.name,
-                        func: resource.definition,
-                        isAnonymousAction: true,
-                        dependsOn: dependsOn
-                    };
-                } else {
-                    return {
-                        name: resource.name,
-                        defined: resource.defined,
-                        resolved: resource.resolved,
-                        handle: resource.handle,
-                        isExternal: resource.isExternal,
-                        dependsOn: dependsOn
-                    };
-                }
-            };
-
-            _Context.prototype.getPendingActions = function () {
-                /// <summary>Get a list of the pending actions queued with require()</summary>
-                /// <returns type="Array" />
-
-                var result = [];
-                var actionKeys = {};
-
-                for (var resourceName in this.resources) {
-                    var resource = _getResourceDirect(this, resourceName);
-                    var lng = resource.pendingDependentActions.length;
-                    if (lng > 0) {
-                        for (var i = 0; i < lng; i++) {
-                            var anonResource = resource.pendingDependentActions[i];
-                            var anonName = anonResource.name;
-                            if (!(anonName in actionKeys)) {
-                                var anonInfo = actionKeys[anonName] = this.getResourceInfo(anonResource, true);
-                                result.push(anonInfo);
-                            }
-                        }
-                    }
-                }
-
-                return result;
-            };
-
-            _Context.prototype.getPendingResources = function () {
-                /// <summary>Get a list of all resources that have unresolved dependencies</summary>
-                /// <returns type="Array" /> 
-                var result = [];
-
-                for (var resourceName in this.resources) {
-                    var resource = this.resources[resourceName];
-                    if (!resource.resolved && resource.defined) {
-                        result.push(this.getResourceInfo(resource, true));
-                    }
-                }
-
-                return result;
-            };
-
-            _Context.prototype.getUndefinedResources = function () {
-                /// <summary>Get a list of resource names that have not yet been defined, and the resources or actions which depend on then</summary>
-                var result = [];
-
-                for (var resourceName in this.resources) {
-                    var resource = _getResourceDirect(this, resourceName);
-                    if (!resource.defined) {
-                        var info = {
-                            name: resourceName,
-                            pendingResources: [],
-                            pendingActions: []
-                        };
-                        if (resource.pendingDependentResources.length > 0) {
-                            for (var i = 0; i < resource.pendingDependentResources.length; i++) {
-                                info.pendingResources.push(this.getResourceInfo(resource.pendingDependentResources[i], true));
-                            }
-                        }
-                        if (resource.pendingDependentActions.length > 0) {
-                            for (var i = 0; i < resource.pendingDependentActions.length; i++) {
-                                info.pendingActions.push(this.getResourceInfo(resource.pendingDependentActions[i], true));
-                            }
-                        }
-                        result.push(info);
-                    }
-                }
-
-                return result;
+                var infoMap = {};
+                var info = infoMap[resourceName] = new ResourceInfo(resource);
+                _expandResourceInfo(this, infoMap);
+                return info;
             };
 
             _Context.prototype.resolve = function () {
@@ -693,7 +760,7 @@
                 } else {
                     for (var resourceName in this.resources) {
                         var resource = this.resources[resourceName];
-                        if (!resource.resolved) {
+                        if (!resource.isResolved) {
                             _resolve(this, resource);
                         }
                     }
@@ -711,6 +778,7 @@
                 }
 
                 this.resources = {};
+                this.pendingActions = [];
                 this.resolveDepth = 0;
                 this.anonymousIndex = 1;
                 this.externalPending = false;
@@ -731,79 +799,19 @@
                 ///   <param name="returnText" type="Boolean" optional="true">Default false. Wether to return the text of the messages instead of printing it to the console</param>
                 /// </signature>
 
-                var undefinedResources = this.getUndefinedResources();
-                var unresolvedResources = this.getPendingResources();
-                var unresolvedActions = this.getPendingActions();
-
-                returnText = returnText === true;
-
-                if (undefinedResources.length == 0 && unresolvedResources.length == 0 && unresolvedActions.length == 0) {
-                    var msg = 'All resources and actions have been resolved';
-                    if (returnText) {
-                        return msg;
-                    } else {
-                        console.log(msg);
-                        return;
-                    }
+                var resources = this.getResources(true, true, null, false, true);
+                var text = '';
+                if (resources.length == 0) {
+                    text = 'All resources and actions have been resolved';
+                } else {
+                    resources.format();
                 }
-
-                var allLines = [];
-                var fnLog = function (line) { console.log(line); };
                 if (returnText) {
-                    fnLog = function (line) { allLines.push(line); };
-                }
-
-                if (undefinedResources.length > 0) {
-                    fnLog('Undefined resources:');
-                }
-
-                for (var i = 0; i < undefinedResources.length; i++) {
-                    var mInfo = undefinedResources[i];
-                    var msg = '  \'' + mInfo.name + '\'';
-
-                    if (mInfo.pendingResources.length > 0) {
-                        var names = [];
-                        for (var j = 0; j < mInfo.pendingResources.length; j++) {
-                            names.push(mInfo.pendingResources[j].name);
-                        }
-                        msg += ' (pending resources : [\'' + names.join('\', \'') + '\'])';
-                    }
-
-                    if (mInfo.pendingActions.length > 0) {
-                        var names = [];
-                        for (var j = 0; j < mInfo.pendingActions.length; j++) {
-                            names.push(mInfo.pendingActions[j].name);
-                        }
-                        msg += ' (pending actions : [\'' + names.join('\', \'') + '\'])';
-                    }
-
-                    fnLog(msg);
-                }
-
-                if (unresolvedResources.length > 0) {
-                    fnLog('Pending resources:');
-                }
-
-                for (var i = 0; i < unresolvedResources.length; i++) {
-                    var mInfo = unresolvedResources[i];
-                    fnLog('  \'' + mInfo.name + '\' (unresolved dependencies : [\'' + mInfo.dependsOn.unresolved.join('\', \'') + '\'])');
-                }
-
-                if (unresolvedActions.length > 0) {
-                    fnLog('Pending actions:');
-                }
-
-                for (var i = 0; i < unresolvedActions.length; i++) {
-                    var mInfo = unresolvedActions[i];
-                    fnLog('  \'' + mInfo.name + '\' (unresolved dependencies : [\'' + mInfo.dependsOn.unresolved.join('\', \'') + '\'])');
-                }
-
-                if (returnText) {
-                    return allLines.join('\r\n');
+                    return text;
+                } else {
+                    console.log(text);
                 }
             };
-
-
 
             // CORE FUNCTIONS: These require the context state as input
             function _getResource(ctx, resourceName) {
@@ -815,11 +823,11 @@
 
                     if (ctx.automaticExternals && window.hasOwnProperty(resourceName)) {
                         if (ctx.debug) console.log('Using existing global object for resource \'' + resourceName + '\'');
-                        resource.defined = true;
+                        resource.isDefined = true;
                         resource.isLiteral = true;
                         resource.isExternal = true;
                         resource.isInferred = true;
-                        resource.resolved = true;
+                        resource.isResolved = true;
                         resource.handle = resource.definition = window[resourceName];
                     }
                 }
@@ -856,7 +864,7 @@
 
                 for (var resourceName in ctx.resources) {
                     var resource = ctx.resources[resourceName];
-                    if (resource.isExternal && !resource.resolved) {
+                    if (resource.isExternal && !resource.isResolved) {
                         if (!_resolve(ctx, resource)) {
                             unresolvedNames.push(resourceName);
                         }
@@ -884,11 +892,11 @@
                 /// <param name="resource" type="Resource" />
                 /// <param name="result" type="*" />
                 /// <returns type="Boolean" />
-                if (resource.resolved) {
+                if (resource.isResolved) {
                     if (ctx.debug) _resolveDebug(ctx, 'Resource \'' + resource.name + '\' already resolved');
                     return true;
                 }
-                if (!resource.defined && !resource.isRemote) {
+                if (!resource.isDefined && !resource.isRemote) {
                     if (ctx.debug) _resolveDebug(ctx, 'Resource \'' + resource.name + '\' not yet defined');
                     return false;
                 }
@@ -897,11 +905,11 @@
                 var resPrefix = '[' + resLabel + ']:: ';
 
                 if (result === undefined) {
-                    if (resource.resolving) {
+                    if (resource.isResolving) {
                         if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Already resolving. Exiting to avoid recursive resolve');
                         return false;
                     }
-                    resource.resolving = true;
+                    resource.isResolving = true;
 
                     if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Attempting to resolve');
 
@@ -912,7 +920,7 @@
                     if (dependsOnCnt > 0) {
                         for (var i = 0 ; i < dependsOnCnt; i++) {
                             var dependsOnResource = resource.dependsOn[i];
-                            if (dependsOnResource.resolved) {
+                            if (dependsOnResource.isResolved) {
                                 if (dependsOnResource.isUrlResource) {
                                     if (resource.isLiteral) {
                                         resource.definition = dependsOnResource.handle;
@@ -934,7 +942,7 @@
                                     _resolveDebug(ctx, resPrefix + 'Could not resolve required resource ' + dependsOnResource.name + '. Aborting resolve');
                                 }
                                 // Don't bother resolving any additional resources 
-                                resource.resolving = false;
+                                resource.isResolving = false;
                                 return (ctx.resolveDepth--, false);
                             }
                         }
@@ -952,7 +960,7 @@
                                 _resolve(ctx, resource, data);
                             },
                             error: function () {
-                                resource.resolving = false;
+                                resource.isResolving = false;
                                 ctx.resolveDepth--;
                                 throw new Error('Failed to load remote resource from url \'' + resource.url + '\'');
                             }
@@ -977,7 +985,7 @@
 
                         if (!isLoaded) {
                             // External resource not yet loaded 
-                            resource.resolving = false;
+                            resource.isResolving = false;
                             return (ctx.resolveDepth--, false);
                         }
 
@@ -1001,12 +1009,12 @@
                     resource.handle = result;
                 }
 
-                resource.resolved = true;
+                resource.isResolved = true;
 
                 // Resource was resolved. Remove it from the list of all its dependee's dependent lists
                 for (var i = 0; i < dependsOnCnt; i++) {
                     var dependsOnResource = resource.dependsOn[i];
-                    if (!dependsOnResource.resolving) {
+                    if (!dependsOnResource.isResolving) {
                         if (resource.isAnonymousAction) {
                             _removeItem(dependsOnResource.pendingDependentActions, resource);
                         } else {
@@ -1016,7 +1024,8 @@
                 }
 
                 if (resource.isAnonymousAction) {
-                    resource.resolving = false;
+                    resource.isResolving = false;
+                    _removeItem(ctx.pendingActions, resource);
                     return (ctx.resolveDepth--, true);
                 }
 
@@ -1054,17 +1063,14 @@
 
                 if (result != null) {
                     // Ajax result. Attempt to resolve all anonymous actions
-                    for (i = ctx.pendingActions.length - 1; i >= 0; i--) {
-                        _resolve(ctx, ctx.pendingActions[i]);
+                    var actions = ctx.pendingActions.concat();
+                    for (i = actions.length - 1; i >= 0; i--) {
+                        _resolve(ctx, actions[i]);
                     }
                 }
 
-                resource.resolving = false;
+                resource.isResolving = false;
                 ctx.resolveDepth--;
-
-                if (resource.isAnonymousAction) {
-                    _removeItem(ctx.pendingActions, resource);
-                }
 
                 return true;
             }
@@ -1089,9 +1095,9 @@
                     resource = _getResource(ctx, resourceName);
                     url_resource = _getResource(ctx, '__URL::' + url_lc);
 
-                    if (!resource.defined && _isEmpty(resource.url)) {
+                    if (!resource.isDefined && _isEmpty(resource.url)) {
                         // First time _define ever called for this resource name
-                        if (url_resource.resolved) {
+                        if (url_resource.isResolved) {
                             // URL has already been loaded
                             if (isLiteral) {
                                 // Assign the returned content of the URL as the definition of this resource
@@ -1107,7 +1113,7 @@
                                 // First time referencing this url
                                 url_resource.isUrlResource = true;
                                 url_resource.url = url;
-                                url_resource.defined = true;
+                                url_resource.isDefined = true;
                             }
                             dependsOn.push(url_resource.name);
                         }
@@ -1119,7 +1125,7 @@
                             isRedefinition = true;
                         } else {
                             // direct _define already called. Basically just setting which URL we expected to get this from
-                            if (url_resource.resolved) {
+                            if (url_resource.isResolved) {
                                 resource.url = url;
                                 return;
                             } else {
@@ -1147,7 +1153,7 @@
                 } else {
                     // Retrieve the existing Resource descriptor, or generate a new empty one
                     resource = _getResource(ctx, resourceName);
-                    if (resource.defined) {
+                    if (resource.isDefined) {
                         if (isExternal && resource.isExternal && resource.isInferred) {
                             // Ok, confirming a previously inferred external resource;
                             resource.isInferred = false;
@@ -1186,7 +1192,7 @@
                 resource.isAnonymousAction = isAnonymousAction;
                 resource.definition = definition;
                 resource.isLiteral = isLiteral;
-                resource.defined = resource.defined || !isRemote;
+                resource.isDefined = resource.isDefined || !isRemote;
                 resource.url = url;
                 resource.isRemote = isRemote;
                 resource.thisArg = thisArg;
@@ -1206,7 +1212,7 @@
                 for (i = 0; i < lng; i++) {
                     var dependsOnResource = _getResource(ctx, dependsOnNames[i]);
                     resource.dependsOn.push(dependsOnResource);
-                    if (!dependsOnResource.resolved) {
+                    if (!dependsOnResource.isResolved) {
                         if (isAnonymousAction) {
                             if (ctx.debug) console.log('Anonymous action depends on resource ' + dependsOnResource.name + ' which is not yet resolved');
                             dependsOnResource.pendingDependentActions.unshift(resource);
@@ -1219,8 +1225,9 @@
                 }
 
                 if (pendingDependsOnCnt == 0 || (isAnonymousAction && !ctx.immediateResolve)) {
-                    // No pending dependencies. Can resolve immediately.
+                    // No pending dependencies OR anonymous action could trigger lazy resolution of dependencies. Attempt to resolve immediately.
                     if (isAnonymousAction || ctx.immediateResolve) {
+                        // Only attempt to result if the resource is an anonymous action OR context calls for immediate resolution of all resources
                         var resolved = _resolve(ctx, resource);
                         if (!resolved && isAnonymousAction) {
                             ctx.pendingActions.push(resource);
@@ -1232,6 +1239,8 @@
                             ctx.timeoutHandle = setTimeout(_resolveExternals, ctx.externalInterval, ctx);
                         }
                     }
+                } else if (isAnonymousAction) {
+                    ctx.pendingActions.push(resource);
                 }
             }
 
@@ -1242,7 +1251,7 @@
                 if (ctx.resources.hasOwnProperty(resourceName)) {
                     var resource = _getResourceDirect(ctx, resourceName);
                     delete ctx.resources[resourceName]
-                    if (resource.resolved && resource.handle && _isFunction(resource.handle['~'])) {
+                    if (resource.isResolved && resource.handle && _isFunction(resource.handle['~'])) {
                         try {
                             resource.handle['~']();
                         } catch (err) {
@@ -1250,7 +1259,57 @@
                         }
                     }
                 }
-            };
+            }
+
+            function _getResourceInfo(context, infoMap, resourceNames, resource) {
+                /// <returns type="ResourceInfo" />
+                var info = infoMap[resource.name];
+                if (info == null) {
+                    info = infoMap[resource.name] = new ResourceInfo(resource);
+                    resourceNames.push(resource.name);
+                }
+                return info;
+            }
+
+            function _expandResourceInfo(context, infoMap) {
+                var resourceNames = [];
+                for (var resourceName in infoMap) {
+                    resourceNames.push(resourceName);
+                }
+
+                var j = 0;
+                while (j < resourceNames.length) {
+                    var resourceName = resourceNames[j];
+                    var info = infoMap[resourceName];
+                    if (info.isAnonymousAction) {
+                        var resource = context.pendingActions.filter(function (x) { return x.name == resourceName; })[0];
+                    } else {
+                        var resource = _getResourceDirect(context, resourceName);
+                    }
+
+                    for (var i = 0; i < resource.dependsOn.length; i++) {
+                        var dependsOnInfo = _getResourceInfo(context, infoMap, resourceNames, resource.dependsOn[i]);
+                        if (dependsOnInfo.isResolved) {
+                            info.dependsOn.resolved.push(dependsOnInfo);
+                        } else {
+                            info.dependsOn.unresolved.push(dependsOnInfo);
+                        }
+                    }
+
+                    for (i = 0; i < resource.pendingDependentResources.length; i++) {
+                        var dependentInfo = _getResourceInfo(context, infoMap, resourceNames, resource.pendingDependentResources[i]);
+                        info.pendingDependents.resources.push(dependentInfo);
+                    }
+
+                    for (i = 0; i < resource.pendingDependentActions.length; i++) {
+                        var dependentInfo = _getResourceInfo(context, infoMap, resourceNames, resource.pendingDependentActions[i]);
+                        info.pendingDependents.actions.push(dependentInfo);
+                    }
+
+                    j++;
+                }
+            }
+
 
             window[RESOURCE_JS_KEY] = resource_module;
 

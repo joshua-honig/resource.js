@@ -11,6 +11,33 @@
         });
     }
 
+    function wrapAsync(assert, name, timeout) {
+        var doneFunc = assert.async();
+        var handle = { done: false };
+        var wrapper = handle.func = function () {
+            if (handle.func.canceled) {
+                console.log('Async test was already canceled');
+                return;
+            }
+            handle.func.done = true;
+            doneFunc();
+        };
+        wrapper.cancel = function (isTimeout) {
+            if (handle.func.done) return;
+            isTimeout = isTimeout !== false;
+            console.log('Canceling async test');
+            assert.ok(false, 'Async test \'' + name + '\' ' + (isTimeout ? 'timed out' : 'canceled'))
+            handle.func.canceled = true;
+            doneFunc();
+        };
+
+        if (!isNaN(+timeout)) {
+            setTimeout(wrapper.cancel, +timeout);
+        }
+
+        return handle.func;
+    };
+
     function objectModel_base(constants) {
 
         function Person(firstName, lastName, age) {
@@ -156,55 +183,346 @@
         assert.ok(window.hasOwnProperty('res'), 'window.res is defined');
         assert.ok(window.hasOwnProperty('resource'), 'window.resource is defined');
 
-        var currentKey = window.resource.key;
+        var currentKey = window.resource.internals.key;
         assert.ok(window[currentKey] != null, 'resource-js version defined');
 
-        assert.ok(resource.hasOwnProperty('anonymousIndex'), 'resource.anonymousIndex is defined');
-        assert.ok(resource.hasOwnProperty('id'), 'resource.id is defined');
-        assert.ok(resource.hasOwnProperty('externalPending'), 'resource.externalPending is defined');
+        assert.hasMembers(
+            resource,
+            ['version', 'Context', 'id', 'name', 'config', 'internals', 'define', 'require', 'destroy', 'resolve', 'reset', 'get', 'describe', 'is', 'list', 'printUnresolved'],
+            'Verify members of window.resource'
+        );
 
-        assert.ok(window.hasOwnProperty('define'), 'window.define is defined');
-        assert.ok(define.hasOwnProperty('external'), 'define.external is defined');
-        assert.ok(define.external.hasOwnProperty('interval'), 'define.external.interval is defined');
-        assert.ok(define.external.hasOwnProperty('timeout'), 'define.external.timeout is defined');
-        assert.ok(define.remote, 'define.external.timeout is defined');
+        assert.hasMembers(
+            resource.Context,
+            ['get', 'create', 'destroy'],
+            'Verify members of window.resource.Context'
+        );
+
+        assert.hasMembers(
+            resource.config,
+            ['debug', 'ignoreRedefine', 'immediateResolve', 'jQuery', 'external'],
+            'Verify members of window.resource.config'
+        );
+
+        assert.hasMembers(
+            resource.config.external,
+            ['autoResolve', 'interval', 'timeout'],
+            'Verify members of window.resource.config.external'
+        );
+
+        assert.hasMembers(
+            resource.internals,
+            ['anonymousIndex', 'externalPending', 'key'],
+            'Verify members of window.resource.internals'
+        );
     });
 
-    QUnit.test('require static methods exist', function (assert) {
-        /// <param name="assert" type="QUnit.Assert" /> 
-        assert.ok(util.isFunction(resource.getResource), 'resource.getResource function is defined');
-        assert.ok(util.isFunction(resource.getResourceInfo), 'resource.getResourceInfo function is defined');
-        assert.ok(util.isFunction(resource.getResources), 'resource.getResources function is defined');
-        assert.ok(util.isFunction(resource.getPendingActions), 'resource.getPendingActions function is defined');
-        assert.ok(util.isFunction(resource.getPendingResources), 'resource.getPendingResources function is defined');
-        assert.ok(util.isFunction(resource.getUndefinedResources), 'resource.getUndefinedResources function is defined');
-        assert.ok(util.isFunction(resource.isDefined), 'resource.isDefined function is defined');
-        assert.ok(util.isFunction(resource.isResolved), 'resource.isResolved function is defined');
-        assert.ok(util.isFunction(resource.reset), 'resource.reset function is defined');
-        assert.ok(util.isFunction(resource.resolve), 'resource.resolve function is defined');
-    });
+    QUnit.module('Context instance methods');
 
-    QUnit.module('require static methods');
-
-    QUnit.test('getResource', function (assert) {
+    QUnit.test('get', function (assert) {
         /// <param name="assert" type="QUnit.Assert" /> 
         resource.reset();
 
         var def = { foo: 'bar' };
         define('a', def);
-        assert.strictEqual(resource.getResource('a'), def, 'getResource returns object literal definition');
+        assert.strictEqual(resource.get('a'), def, 'get returns object literal definition');
 
         function def_func() { };
         define('b', def_func, true);
-        assert.strictEqual(resource.getResource('b'), def_func, 'getResource returns function literal definition');
+        assert.strictEqual(resource.get('b'), def_func, 'get returns function literal definition');
 
         function init_func() { return { name: 'bif', value: 42 }; }
         define('c', init_func);
-        assert.propEqual(resource.getResource('c'), { name: 'bif', value: 42 }, 'getResource returns init function result');
+        assert.propEqual(resource.get('c'), { name: 'bif', value: 42 }, 'get returns init function result');
 
         define.external('jQuery');
-        assert.strictEqual(resource.getResource('jQuery'), window.jQuery, 'getResource returns global variable for external module');
+        assert.strictEqual(resource.get('jQuery'), window.jQuery, 'get returns global variable for external module');
     });
+
+
+    QUnit.test('describe', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" /> 
+        resource.reset();
+
+        var def = { foo: 'bar' };
+        define('a', def);
+        assert.allStrictEqual(resource.describe('a'), {
+            name: 'a',
+            isDefined: true,
+            isResolved: true,
+            isExternal: false,
+            dependsOn: { resolved: [], unresolved: [] },
+            handle: def
+        }, 'describe: object literal');
+
+        function def_func() { };
+        define('b', def_func, true);
+        assert.allStrictEqual(resource.describe('b'), {
+            name: 'b',
+            isDefined: true,
+            isResolved: true,
+            isExternal: false,
+            dependsOn: { resolved: [], unresolved: [] },
+            handle: def_func
+        }, 'describe: function literal');
+
+        function init_func() { return { name: 'bif', value: 42 }; }
+        define('c', init_func);
+        assert.allStrictEqual(resource.describe('c'), {
+            name: 'c',
+            isDefined: true,
+            isResolved: true,
+            isExternal: false,
+            dependsOn: { resolved: [], unresolved: [] },
+            handle: { name: 'bif', value: 42 }
+        }, 'describe: init function');
+
+        define.external('jQuery');
+        assert.allStrictEqual(resource.describe('jQuery'), {
+            name: 'jQuery',
+            isDefined: true,
+            isResolved: true,
+            isExternal: true,
+            dependsOn: { resolved: [], unresolved: [] },
+            handle: window.jQuery
+        }, 'describe: external module');
+    });
+
+    QUnit.test('list.all', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" /> 
+        resource.reset();
+
+        var def = { foo: 'bar' };
+        define('a', def);
+
+        function def_func() { };
+        define('b', def_func, true);
+
+        var resourceMap = resource.list.all().toMap();
+
+        assert.hasMembers(resourceMap, ['a', 'b'], 'Check resource keys', true);
+
+        assert.allStrictEqual(resourceMap['a'], {
+            name: 'a',
+            isDefined: true,
+            isResolved: true,
+            isExternal: false,
+            dependsOn: [],
+            handle: def
+        }, 'Verify module a info');
+
+        assert.allStrictEqual(resourceMap['b'], {
+            name: 'b',
+            isDefined: true,
+            isResolved: true,
+            isExternal: false,
+            dependsOn: [],
+            handle: def_func
+        }, 'Verify module b info');
+
+    });
+
+    QUnit.test('list.actions', function (assert) {
+        resource.reset();
+
+        var anonFunc1 = function (constants) {
+            assert.strictEqual(constants.majorityAge, 18, 'app-constants injected to anonFunc1');
+        };
+
+        var anonFunc2 = function (constants) {
+            assert.strictEqual(constants.majorityAge, 18, 'app-constants injected to anonFunc2');
+        };
+
+        require('app-constants', anonFunc1);
+        require('app-constants', anonFunc2);
+
+        var fnSortName = util.propSorter('name');
+        var infos = resource.list.actions().sort(fnSortName);
+
+        assert.strictEqual(infos.length, 2, 'Two pending actions');
+
+        assert.allStrictEqual(infos, [
+            {
+                isAnonymousAction: true,
+                definition: anonFunc1,
+                dependsOn: {
+                    resolved: [],
+                    unresolved: [{ name: 'app-constants' }]
+                },
+                name: 'Action 1'
+            },
+            {
+                isAnonymousAction: true,
+                definition: anonFunc2,
+                dependsOn: {
+                    resolved: [],
+                    unresolved: [{ name: 'app-constants' }]
+                },
+                name: 'Action 2'
+            }
+        ], 'Action info');
+
+        define_constants();
+        assert.strictEqual(resource.list.actions().length, 0, 'Actions now resolved');
+    });
+
+    QUnit.test('list.resources (defined but unresolved)', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />
+        resource.reset();
+
+        define_object_literal(true);
+
+        var infos = resource.list.resources(true, false);
+
+        assert.strictEqual(infos.length, 1, 'One pending module');
+
+        assert.allStrictEqual(infos, [{
+            name: 'object-literal',
+            isDefined: true,
+            isResolved: false,
+            isExternal: false,
+            dependsOn: {
+                resolved: [],
+                unresolved: [{ name: 'base' }]
+            },
+            handle: null
+        }], 'Pending module info');
+
+        define('base', {});
+
+        assert.strictEqual(resource.list.resources(true, false).length, 0, 'Modules now resolved');
+    });
+
+    QUnit.test('list.resources (undefined)', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />
+        resource.reset();
+
+        define('a', ['b'], {});
+
+        var aInfo = resource.describe('a', true);
+
+        var infos = resource.list.resources(false);
+
+        assert.strictEqual(infos.length, 1, 'One undefined module');
+        assert.allStrictEqual(infos, [
+            {
+                name: 'b',
+                pendingDependents: {
+                    actions: [],
+                    resources: [{
+                        name: 'a'
+                    }]
+                }
+            }
+        ], 'undefined modules info');
+
+        define('b', {});
+        assert.strictEqual(resource.list.resources(false).length, 0, 'No undefined modules now');
+    });
+
+    QUnit.test('is.defined', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />
+        resource.reset();
+
+        define('a', {});
+        assert.ok(resource.is.defined('a'), 'a is defined');
+        assert.notOk(resource.is.defined('b'), 'b is not defined');
+    });
+
+    QUnit.test('is.resolved', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />
+        resource.reset();
+
+        define('a', {});
+        define('b', ['c'], {});
+
+        assert.ok(resource.is.resolved('a'), 'a is resolved');
+        assert.ok(resource.is.defined('b'), 'b is defined');
+        assert.notOk(resource.is.resolved('b'), 'b is not resolved');
+        assert.notOk(resource.is.resolved('c'), 'c is not resolved');
+        assert.notOk(resource.is.resolved('x'), 'x is not resolved');
+    });
+
+    QUnit.test('reset', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />
+        resource.reset();
+
+        define('a', {});
+        define('b', ['c'], {});
+        require(['c'], function () { });
+
+        var indexBefore = resource.id;
+
+        assert.strictEqual(resource.list.resources().length, 3, 'Three modules defined or referenced');
+        assert.strictEqual(resource.list.resources(true, false).length, 1, 'One pending module');
+        assert.strictEqual(resource.list.actions().length, 1, 'One pending action');
+        assert.strictEqual(resource.list.resources(false).length, 1, 'One undefined module reference');
+
+        resource.reset();
+
+        assert.strictEqual(resource.list.resources().length, 0, 'No modules defined or referenced');
+        assert.strictEqual(resource.list.resources(true, false).length, 0, 'No pending modules');
+        assert.strictEqual(resource.list.actions().length, 0, 'No pending actions');
+        assert.strictEqual(resource.list.resources(false).length, 0, 'No undefined module references');
+        assert.strictEqual(resource.id, indexBefore + 1, '_contextIndex incremented');
+    });
+
+    QUnit.test('resolve (all)', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />
+        resource.reset();
+
+        util.clearGlobal('global-1');
+        util.clearGlobal('global-2');
+
+        define('a', {});
+        define('b', ['global-1'], {});
+        define('c', ['global-2'], {});
+        define.external('global-1');
+        define.external('global-2');
+
+        assert.strictEqual(resource.list.resources(true, false).length, 4, 'Four pending modules');
+
+        window['global-1'] = {};
+        window['global-2'] = {};
+
+        resource.resolve();
+
+        assert.strictEqual(resource.list.resources(true, false).length, 0, 'No pending modules');
+    });
+
+    QUnit.test('resolve (selective)', function (assert) {
+        /// <param name="assert" type="QUnit.Assert" />
+        resource.reset();
+
+        util.clearGlobal('global-1');
+        util.clearGlobal('global-2');
+
+        define('a', {});
+        define('b', ['global-1'], {});
+        define('c', ['global-2'], {});
+        define.external('global-1');
+        define.external('global-2');
+
+        assert.strictEqual(resource.list.resources(true, false).length, 4, 'Four pending modules');
+
+        window['global-1'] = {};
+        window['global-2'] = {};
+
+        resource.resolve('global-1');
+
+        assert.strictEqual(resource.list.resources(true, false).length, 2, 'Two pending modules');
+
+        resource.resolve('global-2');
+
+        assert.strictEqual(resource.list.resources(true, false).length, 0, 'No pending modules');
+    });
+
+
+
+
+
+
+    QUnit.module('require');
 
     QUnit.test('require([moduleName])', function (assert) {
         /// <param name="assert" type="QUnit.Assert" /> 
@@ -226,266 +544,6 @@
         assert.strictEqual(require('jQuery'), window.jQuery, 'require([moduleName]) returns global variable for external module');
     });
 
-    QUnit.test('getResourceInfo', function (assert) {
-        /// <param name="assert" type="QUnit.Assert" /> 
-        resource.reset();
-
-        var def = { foo: 'bar' };
-        define('a', def);
-        assert.deepEqual(resource.getResourceInfo('a'), {
-            defined: true,
-            dependsOn: [],
-            handle: def,
-            isExternal: false,
-            name: 'a',
-            resolved: true
-        }, 'getResourceInfo: object literal');
-
-        function def_func() { };
-        define('b', def_func, true);
-        assert.deepEqual(resource.getResourceInfo('b'), {
-            defined: true,
-            dependsOn: [],
-            handle: def_func,
-            isExternal: false,
-            name: 'b',
-            resolved: true
-        }, 'getResourceInfo: function literal');
-
-        function init_func() { return { name: 'bif', value: 42 }; }
-        define('c', init_func);
-        assert.deepEqual(resource.getResourceInfo('c'), {
-            defined: true,
-            dependsOn: [],
-            handle: { name: 'bif', value: 42 },
-            isExternal: false,
-            name: 'c',
-            resolved: true
-        }, 'getResourceInfo: init function');
-
-        define.external('jQuery');
-        assert.deepEqual(resource.getResourceInfo('jQuery'), {
-            defined: true,
-            dependsOn: [],
-            handle: window.jQuery,
-            isExternal: true,
-            name: 'jQuery',
-            resolved: true
-        }, 'getResourceInfo: external module');
-    });
-
-    QUnit.test('getResources', function (assert) {
-        /// <param name="assert" type="QUnit.Assert" /> 
-        resource.reset();
-
-        var def = { foo: 'bar' };
-        define('a', def);
-
-        function def_func() { };
-        define('b', def_func, true);
-
-        assert.deepEqual(resource.getResources(), {
-            a: {
-                defined: true,
-                dependsOn: [],
-                handle: def,
-                isExternal: false,
-                name: 'a',
-                resolved: true
-            },
-            b: {
-                defined: true,
-                dependsOn: [],
-                handle: def_func,
-                isExternal: false,
-                name: 'b',
-                resolved: true
-            }
-        }, 'getResources');
-    });
-
-    QUnit.test('getPendingActions', function (assert) {
-        resource.reset();
-
-        var anonFunc1 = function (constants) {
-            assert.strictEqual(constants.majorityAge, 18, 'app-constants injected to anonFunc1');
-        };
-
-        var anonFunc2 = function (constants) {
-            assert.strictEqual(constants.majorityAge, 18, 'app-constants injected to anonFunc2');
-        };
-
-        require('app-constants', anonFunc1);
-        require('app-constants', anonFunc2);
-
-        assert.strictEqual(resource.getPendingActions().length, 2, 'Two pending actions');
-        assert.deepEqual(resource.getPendingActions(), [
-            {
-                isAnonymousAction: true,
-                func: anonFunc2,
-                dependsOn: {
-                    resolved: [],
-                    unresolved: ['app-constants']
-                },
-                name: 'Action 2'
-            },
-            {
-                isAnonymousAction: true,
-                func: anonFunc1,
-                dependsOn: {
-                    resolved: [],
-                    unresolved: ['app-constants']
-                },
-                name: 'Action 1'
-            }
-        ], 'Action info');
-
-        define_constants();
-        assert.strictEqual(resource.getPendingActions().length, 0, 'Actions now resolved');
-    });
-
-    QUnit.test('getPendingResources', function (assert) {
-        /// <param name="assert" type="QUnit.Assert" />
-        resource.reset();
-
-        define_object_literal(true);
-        assert.strictEqual(resource.getPendingResources().length, 1, 'One pending module');
-
-        assert.deepEqual(resource.getPendingResources(), [{
-            defined: true,
-            dependsOn: {
-                resolved: [],
-                unresolved: ['base']
-            },
-            handle: null,
-            isExternal: false,
-            name: 'object-literal',
-            resolved: false
-        }], 'Pending module info');
-
-        define('base', {});
-
-        assert.strictEqual(resource.getPendingResources().length, 0, 'Modules now resolved');
-    });
-
-    QUnit.test('getUndefinedResources', function (assert) {
-        /// <param name="assert" type="QUnit.Assert" />
-        resource.reset();
-
-        define('a', ['b'], {});
-
-        var aInfo = resource.getResourceInfo('a', true);
-
-        assert.strictEqual(resource.getUndefinedResources().length, 1, 'One undefined module');
-        assert.deepEqual(resource.getUndefinedResources(), [
-            {
-                name: 'b',
-                pendingActions: [],
-                pendingResources: [aInfo]
-            }
-        ], 'undefined modules info');
-
-        define('b', {});
-        assert.strictEqual(resource.getUndefinedResources().length, 0, 'No undefined modules now');
-    });
-
-    QUnit.test('isDefined', function (assert) {
-        /// <param name="assert" type="QUnit.Assert" />
-        resource.reset();
-
-        define('a', {});
-        assert.ok(resource.isDefined('a'), 'a is defined');
-        assert.notOk(resource.isDefined('b'), 'b is not defined');
-    });
-
-    QUnit.test('isResolved', function (assert) {
-        /// <param name="assert" type="QUnit.Assert" />
-        resource.reset();
-
-        define('a', {});
-        define('b', ['c'], {});
-
-        assert.ok(resource.isResolved('a'), 'a is resolved');
-        assert.ok(resource.isDefined('b'), 'b is defined');
-        assert.notOk(resource.isResolved('b'), 'b is not resolved');
-        assert.notOk(resource.isResolved('c'), 'c is not resolved');
-        assert.notOk(resource.isResolved('x'), 'x is not resolved');
-    });
-
-    QUnit.test('reset', function (assert) {
-        /// <param name="assert" type="QUnit.Assert" />
-        resource.reset();
-
-        define('a', {});
-        define('b', ['c'], {});
-        require(['c'], function () { });
-
-        var indexBefore = resource.id;
-
-        assert.strictEqual(util.toArray(resource.getResources()).length, 3, 'Three modules defined or referenced');
-        assert.strictEqual(resource.getPendingResources().length, 1, 'One pending module');
-        assert.strictEqual(resource.getPendingActions().length, 1, 'One pending action');
-        assert.strictEqual(resource.getUndefinedResources().length, 1, 'One undefined module reference');
-
-        resource.reset();
-
-        assert.strictEqual(util.toArray(resource.getResources()).length, 0, 'No modules defined or referenced');
-        assert.strictEqual(resource.getPendingResources().length, 0, 'No pending modules');
-        assert.strictEqual(resource.getPendingActions().length, 0, 'No pending actions');
-        assert.strictEqual(resource.getUndefinedResources().length, 0, 'No undefined module references');
-        assert.strictEqual(resource.id, indexBefore + 1, '_contextIndex incremented');
-    });
-
-    QUnit.test('resolve (all)', function (assert) {
-        /// <param name="assert" type="QUnit.Assert" />
-        resource.reset();
-
-        util.clearGlobal('global-1');
-        util.clearGlobal('global-2');
-
-        define('a', {});
-        define('b', ['global-1'], {});
-        define('c', ['global-2'], {});
-        define.external('global-1');
-        define.external('global-2');
-
-        assert.strictEqual(resource.getPendingResources().length, 4, 'Four pending modules');
-
-        window['global-1'] = {};
-        window['global-2'] = {};
-
-        resource.resolve();
-
-        assert.strictEqual(resource.getPendingResources().length, 0, 'No pending modules');
-    });
-
-    QUnit.test('resolve (selective)', function (assert) {
-        /// <param name="assert" type="QUnit.Assert" />
-        resource.reset();
-
-        util.clearGlobal('global-1');
-        util.clearGlobal('global-2');
-
-        define('a', {});
-        define('b', ['global-1'], {});
-        define('c', ['global-2'], {});
-        define.external('global-1');
-        define.external('global-2');
-
-        assert.strictEqual(resource.getPendingResources().length, 4, 'Four pending modules');
-
-        window['global-1'] = {};
-        window['global-2'] = {};
-
-        resource.resolve('global-1');
-
-        assert.strictEqual(resource.getPendingResources().length, 2, 'Two pending modules');
-
-        resource.resolve('global-2');
-
-        assert.strictEqual(resource.getPendingResources().length, 0, 'No pending modules');
-    });
-
     QUnit.module('basic module definitions');
 
     QUnit.test('Object constant', function (assert) {
@@ -494,13 +552,13 @@
 
         var module_object = define_object_literal();
 
-        var info = resource.getResourceInfo('object-literal');
+        var info = resource.describe('object-literal');
         assert.ok(info, 'object-literal module exists');
-        assert.ok(info.defined, 'object-literal module is defined');
-        assert.ok(info.resolved, 'object-literal module is resolved');
+        assert.ok(info.isDefined, 'object-literal module is defined');
+        assert.ok(info.isResolved, 'object-literal module is resolved');
 
-        assert.strictEqual(resource.getResource('object-literal'), module_object, 'getResource returns module definition object');
-        assert.strictEqual(resource.getResourceInfo('object-literal').handle, module_object, 'getResourceInfo().handle returns module definition object');
+        assert.strictEqual(resource.get('object-literal'), module_object, 'get returns module definition object');
+        assert.strictEqual(resource.describe('object-literal').handle, module_object, 'describe().handle returns module definition object');
     });
 
     QUnit.test('Function constant', function (assert) {
@@ -509,13 +567,13 @@
 
         var func_def = define_function_literal();
 
-        var info = resource.getResourceInfo('func-literal');
+        var info = resource.describe('func-literal');
         assert.ok(info, 'func-literal module exists');
-        assert.ok(info.defined, 'func-literal module is defined');
-        assert.ok(info.resolved, 'func-literal module is resolved');
+        assert.ok(info.isDefined, 'func-literal module is defined');
+        assert.ok(info.isResolved, 'func-literal module is resolved');
 
-        assert.strictEqual(resource.getResource('func-literal'), func_def, 'getResource returns module definition function');
-        assert.strictEqual(resource.getResourceInfo('func-literal').handle, func_def, 'getResourceInfo().handle returns module definition function');
+        assert.strictEqual(resource.get('func-literal'), func_def, 'get returns module definition function');
+        assert.strictEqual(resource.describe('func-literal').handle, func_def, 'describe().handle returns module definition function');
     });
 
     QUnit.test('Anonymous function', function (assert) {
@@ -524,12 +582,12 @@
 
         define_anon_function();
 
-        var info = resource.getResourceInfo('anon-module');
+        var info = resource.describe('anon-module');
         assert.ok(info, 'anon-module module exists');
-        assert.ok(info.defined, 'anon-module module is defined');
-        assert.ok(info.resolved, 'anon-module module is resolved');
+        assert.ok(info.isDefined, 'anon-module module is defined');
+        assert.ok(info.isResolved, 'anon-module module is resolved');
 
-        var module_object = resource.getResource('anon-module');
+        var module_object = resource.get('anon-module');
         assert.ok(module_object.hasOwnProperty('whenConstructed'), 'module initialized');
     });
 
@@ -539,12 +597,12 @@
 
         define_named_function();
 
-        var info = resource.getResourceInfo('named-module');
+        var info = resource.describe('named-module');
         assert.ok(info, 'named-module module exists');
-        assert.ok(info.defined, 'named-module module is defined');
-        assert.ok(info.resolved, 'named-module module is resolved');
+        assert.ok(info.isDefined, 'named-module module is defined');
+        assert.ok(info.isResolved, 'named-module module is resolved');
 
-        var module_object = resource.getResource('named-module');
+        var module_object = resource.get('named-module');
         assert.ok(module_object.hasOwnProperty('whenConstructed'), 'module initialized : whenConstructed');
         assert.ok(module_object.hasOwnProperty('source'), 'module initialized : source');
         assert.ok(module_object.hasOwnProperty('sourceName'), 'module initialized : sourceName');
@@ -556,19 +614,19 @@
         resource.reset();
 
         define.external('baz');
-        var info = resource.getResourceInfo('baz');
+        var info = resource.describe('baz');
         assert.ok(info, 'baz module exists');
         assert.ok(info.isExternal, 'baz module is external');
-        assert.ok(info.defined, 'baz module is defined');
-        assert.notOk(info.resolved, 'baz module is NOT resolved');
+        assert.ok(info.isDefined, 'baz module is defined');
+        assert.notOk(info.isResolved, 'baz module is NOT resolved');
 
         window.baz = { name: 'baz module!' };
 
         resource.resolve('baz');
 
-        var info = resource.getResourceInfo('baz');
-        assert.ok(info.defined, 'baz module is now defined');
-        assert.ok(info.resolved, 'baz module is now resolved');
+        var info = resource.describe('baz');
+        assert.ok(info.isDefined, 'baz module is now defined');
+        assert.ok(info.isResolved, 'baz module is now resolved');
     });
 
     QUnit.module('dependent module definitions');
@@ -579,17 +637,17 @@
 
         var module_object = define_object_literal(true);
 
-        var info = resource.getResourceInfo('object-literal');
+        var info = resource.describe('object-literal');
         assert.ok(info, 'object-literal module exists');
-        assert.ok(info.defined, 'object-literal module is defined');
-        assert.notOk(info.resolved, 'object-literal module is NOT resolved');
+        assert.ok(info.isDefined, 'object-literal module is defined');
+        assert.notOk(info.isResolved, 'object-literal module is NOT resolved');
 
         define('base', {});
 
-        var info = resource.getResourceInfo('object-literal');
-        assert.ok(info.resolved, 'object-literal module is now resolved');
+        var info = resource.describe('object-literal');
+        assert.ok(info.isResolved, 'object-literal module is now resolved');
 
-        assert.strictEqual(resource.getResource('object-literal'), module_object, 'getResource returns module definition object');
+        assert.strictEqual(resource.get('object-literal'), module_object, 'get returns module definition object');
     });
 
     QUnit.test('Function constant', function (assert) {
@@ -598,17 +656,17 @@
 
         var func_def = define_function_literal(true);
 
-        var info = resource.getResourceInfo('func-literal');
+        var info = resource.describe('func-literal');
         assert.ok(info, 'func-literal module exists');
-        assert.ok(info.defined, 'func-literal module is defined');
-        assert.notOk(info.resolved, 'func-literal module is NOT resolved');
+        assert.ok(info.isDefined, 'func-literal module is defined');
+        assert.notOk(info.isResolved, 'func-literal module is NOT resolved');
 
         define('base', {});
 
-        var info = resource.getResourceInfo('func-literal');
-        assert.ok(info.resolved, 'func-literal module is now resolved');
+        var info = resource.describe('func-literal');
+        assert.ok(info.isResolved, 'func-literal module is now resolved');
 
-        assert.strictEqual(resource.getResource('func-literal'), func_def, 'getResource returns module definition function');
+        assert.strictEqual(resource.get('func-literal'), func_def, 'get returns module definition function');
     });
 
     QUnit.test('Anonymous function', function (assert) {
@@ -617,17 +675,17 @@
 
         define_anon_function(true);
 
-        var info = resource.getResourceInfo('anon-module');
+        var info = resource.describe('anon-module');
         assert.ok(info, 'anon-module module exists');
-        assert.ok(info.defined, 'anon-module module is defined');
-        assert.notOk(info.resolved, 'anon-module module is NOT resolved');
+        assert.ok(info.isDefined, 'anon-module module is defined');
+        assert.notOk(info.isResolved, 'anon-module module is NOT resolved');
 
         define('base', {});
 
-        var info = resource.getResourceInfo('anon-module');
-        assert.ok(info.resolved, 'anon-module module is now resolved');
+        var info = resource.describe('anon-module');
+        assert.ok(info.isResolved, 'anon-module module is now resolved');
 
-        var module_object = resource.getResource('anon-module');
+        var module_object = resource.get('anon-module');
         assert.ok(module_object.hasOwnProperty('whenConstructed'), 'module initialized');
     });
 
@@ -637,17 +695,17 @@
 
         define_named_function(true);
 
-        var info = resource.getResourceInfo('named-module');
+        var info = resource.describe('named-module');
         assert.ok(info, 'named-module module exists');
-        assert.ok(info.defined, 'named-module module is defined');
-        assert.notOk(info.resolved, 'named-module module is NOT resolved');
+        assert.ok(info.isDefined, 'named-module module is defined');
+        assert.notOk(info.isResolved, 'named-module module is NOT resolved');
 
         define('base', {});
 
-        var info = resource.getResourceInfo('named-module');
-        assert.ok(info.resolved, 'named-module module is now resolved');
+        var info = resource.describe('named-module');
+        assert.ok(info.isResolved, 'named-module module is now resolved');
 
-        var module_object = resource.getResource('named-module');
+        var module_object = resource.get('named-module');
         assert.ok(module_object.hasOwnProperty('whenConstructed'), 'module initialized : whenConstructed');
         assert.ok(module_object.hasOwnProperty('source'), 'module initialized : source');
         assert.ok(module_object.hasOwnProperty('sourceName'), 'module initialized : sourceName');
@@ -664,7 +722,7 @@
         define_base();
         define_constants();
 
-        var dataModel = resource.getResource('object-model-base');
+        var dataModel = resource.get('object-model-base');
         var Person = dataModel.Person;
 
         var bob = new Person('Robert', 'Fillmore', 89);
@@ -682,7 +740,7 @@
         define_constants();
         define_employee();
 
-        var dataModel = resource.getResource('object-model-employee');
+        var dataModel = resource.get('object-model-employee');
         var Employee = dataModel.Employee;
 
         var joe = new Employee('Joe', 'Schmoe', 23409, 25);
@@ -700,13 +758,13 @@
             return { myjQueryHandle: $ };
         });
 
-        var moduleInfo = resource.getResourceInfo('test-module');
-        var jqueryInfo = resource.getResourceInfo('jQuery');
+        var moduleInfo = resource.describe('test-module');
+        var jqueryInfo = resource.describe('jQuery');
 
-        assert.strictEqual(jqueryInfo.resolved, true, 'jQuery module is defined and resolved');
+        assert.strictEqual(jqueryInfo.isResolved, true, 'jQuery module is defined and resolved');
         assert.strictEqual(jqueryInfo.isExternal, true, 'jQuery module is an external module');
 
-        assert.strictEqual(moduleInfo.resolved, true, 'test-module module is defined and resolved');
+        assert.strictEqual(moduleInfo.isResolved, true, 'test-module module is defined and resolved');
     });
 
     QUnit.test('require with single dependency', function (assert) {
@@ -717,9 +775,9 @@
             assert.strictEqual(constants.majorityAge, 18, 'Dependency injected successfully');
         });
 
-        assert.strictEqual(resource.getPendingActions().length, 1, 'Action is now pending');
+        assert.strictEqual(resource.list.actions().length, 1, 'Action is now pending');
         define_constants();
-        assert.strictEqual(resource.getPendingActions().length, 0, 'Actions no longer pending');
+        assert.strictEqual(resource.list.actions().length, 0, 'Actions no longer pending');
     });
 
     QUnit.test('require with multiple dependencies', function (assert) {
@@ -732,9 +790,9 @@
             assert.ok(body instanceof HTMLBodyElement, 'jQuery injected successfully');
         });
 
-        assert.strictEqual(resource.getPendingActions().length, 1, 'Action is now pending');
+        assert.strictEqual(resource.list.actions().length, 1, 'Action is now pending');
         define_constants();
-        assert.strictEqual(resource.getPendingActions().length, 0, 'Actions no longer pending');
+        assert.strictEqual(resource.list.actions().length, 0, 'Actions no longer pending');
     });
 
     QUnit.test('Automatic detection of subsequently defined global varaible', function (assert) {
@@ -745,32 +803,32 @@
             return { otherResource: moment };
         });
 
-        var moduleInfo = resource.getResourceInfo('test-module');
-        var momentInfo = resource.getResourceInfo('moment');
+        var moduleInfo = resource.describe('test-module');
+        var momentInfo = resource.describe('moment');
 
-        assert.ok(!momentInfo.resolved && !momentInfo.defined, 'moment module is neither defined nor resolved');
+        assert.ok(!momentInfo.isResolved && !momentInfo.isDefined, 'moment module is neither defined nor resolved');
         assert.notOk(momentInfo.isExternal, 'moment module is not an external module');
-        assert.ok(moduleInfo.defined && !moduleInfo.resolved, 'test-module module is defined but not resolved');
+        assert.ok(moduleInfo.isDefined && !moduleInfo.isResolved, 'test-module module is defined but not resolved');
 
         define.external('moment');
 
-        momentInfo = resource.getResourceInfo('moment');
-        assert.ok(momentInfo.defined && !momentInfo.resolved, 'moment module is now defined but not yet resolved');
+        momentInfo = resource.describe('moment');
+        assert.ok(momentInfo.isDefined && !momentInfo.isResolved, 'moment module is now defined but not yet resolved');
         assert.ok(momentInfo.isExternal, 'moment module is now marked as an external module');
-        assert.ok(resource.externalPending, 'External modules pending');
+        assert.ok(resource.internals.externalPending, 'External modules pending');
 
         var done = assert.async();
 
         window.moment = { name: 'Mock moment module' };
 
         setTimeout(function () {
-            var moduleInfo = resource.getResourceInfo('test-module');
-            var momentInfo = resource.getResourceInfo('moment');
+            var moduleInfo = resource.describe('test-module');
+            var momentInfo = resource.describe('moment');
 
-            assert.notOk(resource.externalPending, 'External modules no longer pending');
-            assert.ok(momentInfo.resolved, 'moment module is now resolved');
+            assert.notOk(resource.internals.externalPending, 'External modules no longer pending');
+            assert.ok(momentInfo.isResolved, 'moment module is now resolved');
             assert.strictEqual(momentInfo.handle, window.moment, 'moment module handle === window.moment');
-            assert.ok(moduleInfo.resolved, 'test-module module is now resolved');
+            assert.ok(moduleInfo.isResolved, 'test-module module is now resolved');
 
             done();
         }, 300);
@@ -785,36 +843,36 @@
             return { otherResource: moment };
         });
 
-        var moduleInfo = resource.getResourceInfo('test-module-2');
-        var momentInfo = resource.getResourceInfo('moment2');
+        var moduleInfo = resource.describe('test-module-2');
+        var momentInfo = resource.describe('moment2');
 
-        assert.ok(!momentInfo.resolved && !momentInfo.defined, 'moment-2 module is neither defined nor resolved');
+        assert.ok(!momentInfo.isResolved && !momentInfo.isDefined, 'moment-2 module is neither defined nor resolved');
         assert.notOk(momentInfo.isExternal, 'moment2 module is not an external module');
-        assert.ok(moduleInfo.defined && !moduleInfo.resolved, 'test-module-2 module is defined but not resolved');
+        assert.ok(moduleInfo.isDefined && !moduleInfo.isResolved, 'test-module-2 module is defined but not resolved');
 
         define.external('moment2');
 
-        momentInfo = resource.getResourceInfo('moment2');
-        assert.ok(momentInfo.defined && !momentInfo.resolved, 'moment2 module is now defined but not yet resolved');
+        momentInfo = resource.describe('moment2');
+        assert.ok(momentInfo.isDefined && !momentInfo.isResolved, 'moment2 module is now defined but not yet resolved');
         assert.ok(momentInfo.isExternal, 'moment2 module is now marked as an external module');
-        assert.ok(resource.externalPending, 'External modules pending');
+        assert.ok(resource.internals.externalPending, 'External modules pending');
 
         window.moment2 = { name: 'Mock moment module' };
 
         resource.resolve('moment2');
 
-        var moduleInfo = resource.getResourceInfo('test-module-2');
-        var momentInfo = resource.getResourceInfo('moment2');
+        var moduleInfo = resource.describe('test-module-2');
+        var momentInfo = resource.describe('moment2');
 
-        assert.ok(momentInfo.resolved, 'moment2 module is now resolved');
+        assert.ok(momentInfo.isResolved, 'moment2 module is now resolved');
         assert.strictEqual(momentInfo.handle, window.moment2, 'moment2 module handle === window.moment2');
-        assert.ok(moduleInfo.resolved, 'test-module-2 module is now resolved');
+        assert.ok(moduleInfo.isResolved, 'test-module-2 module is now resolved');
     });
 
     QUnit.test('Complex dependencies', function (assert) {
         /// <param name="assert" type="QUnit.Assert" /> 
         resource.reset();
-        resource.debug = true;
+        resource.config.debug = true;
 
         console.log('-----------------------------------------------------------');
 
@@ -831,20 +889,20 @@
 
         define('c', ['a', 'b'], createResourceInit('c'));
 
-        assert.sameItems(util.select(resource.getResources(), 'name'), ['a', 'b', 'c'], 'a, b, c defined or referenced');
-        assert.sameItems(util.select(resource.getPendingResources(), 'name'), ['c'], 'c pending');
+        assert.sameItems(util.select(resource.list.resources(), 'name'), ['a', 'b', 'c'], 'a, b, c defined or referenced');
+        assert.sameItems(util.select(resource.list.resources(true, false), 'name'), ['c'], 'c pending');
 
         define('f', ['c'], createResourceInit('f'));
         define('e', ['c', 'd'], createResourceInit('e'));
 
-        assert.sameItems(util.select(resource.getResources(), 'name'), ['a', 'b', 'c', 'd', 'e', 'f'], 'a, b, c, d, e, f defined or referenced');
-        assert.sameItems(util.select(resource.getPendingResources(), 'name'), ['c', 'e', 'f'], 'c, e, f pending');
+        assert.sameItems(util.select(resource.list.resources(), 'name'), ['a', 'b', 'c', 'd', 'e', 'f'], 'a, b, c, d, e, f defined or referenced');
+        assert.sameItems(util.select(resource.list.resources(true, false), 'name'), ['c', 'e', 'f'], 'c, e, f pending');
 
         define('h', ['e', 'f', 'g'], createResourceInit('h'));
         define('d', ['a'], createResourceInit('d'));
 
-        assert.sameItems(util.select(resource.getResources(), 'name'), ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], 'a, b, c, d, e, f, g, h defined or referenced');
-        assert.sameItems(util.select(resource.getPendingResources(), 'name'), ['c', 'd', 'e', 'f', 'h'], 'c, d, e, f, h pending');
+        assert.sameItems(util.select(resource.list.resources(), 'name'), ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'], 'a, b, c, d, e, f, g, h defined or referenced');
+        assert.sameItems(util.select(resource.list.resources(true, false), 'name'), ['c', 'd', 'e', 'f', 'h'], 'c, d, e, f, h pending');
 
         var anonResolved = false;
 
@@ -854,27 +912,27 @@
             anonResolved = true;
         });
 
-        resource.listUnresolved();
+        resource.printUnresolved();
 
         define('a', { name: 'module a' });
-        assert.ok(resource.isResolved('a'), 'a is now resolved');
-        assert.ok(resource.isResolved('d'), 'd is now resolved');
-        assert.sameItems(util.select(resource.getPendingResources(), 'name'), ['c', 'e', 'f', 'h'], 'c, e, f, h pending');
+        assert.ok(resource.is.resolved('a'), 'a is now resolved');
+        assert.ok(resource.is.resolved('d'), 'd is now resolved');
+        assert.sameItems(util.select(resource.list.resources(true, false), 'name'), ['c', 'e', 'f', 'h'], 'c, e, f, h pending');
 
         assert.notOk(anonResolved, 'Action 1 not yet invoked');
-        assert.sameItems(util.select(resource.getPendingActions(), 'name'), ['Action 1'], 'Anonymous action 1 still pending');
+        assert.sameItems(util.select(resource.list.actions(), 'name'), ['Action 1'], 'Anonymous action 1 still pending');
 
         define('g', ['d'], createResourceInit('g'));
-        assert.ok(resource.isResolved('g'), 'g is resolved immediately');
+        assert.ok(resource.is.resolved('g'), 'g is resolved immediately');
 
         define('b', {});
-        assert.strictEqual(resource.getPendingResources().length, 0, 'All modules now resolved');
+        assert.strictEqual(resource.list.resources(true, false).length, 0, 'All modules now resolved');
 
         assert.ok(anonResolved, 'Action 1 has now been invoked');
 
-        resource.listUnresolved();
+        resource.printUnresolved();
 
-        resource.debug = false;
+        resource.config.debug = false;
         console.log('-----------------------------------------------------------');
     });
 
@@ -884,18 +942,18 @@
         /// <param name="assert" type="QUnit.Assert" />  
         resource.reset();
 
-        var jqInfo1 = resource.getResourceInfo('jQuery');
+        var jqInfo1 = resource.describe('jQuery');
         assert.strictEqual(jqInfo1, null, 'jQuery is not yet defined');
         define.external('jQuery');
 
-        var jqInfo2 = resource.getResourceInfo('jQuery');
-        assert.ok(jqInfo2.defined, 'jQuery is now defined');
+        var jqInfo2 = resource.describe('jQuery');
+        assert.ok(jqInfo2.isDefined, 'jQuery is now defined');
         assert.ok(jqInfo2.isExternal, 'jQuery is external');
         assert.strictEqual(jqInfo2.handle, window.jQuery, 'jQuery resource handle matches global varaible');
 
         define.external('$', 'jQuery');
-        var info = resource.getResourceInfo('$');
-        assert.ok(info.defined, '$ resource is defined');
+        var info = resource.describe('$');
+        assert.ok(info.isDefined, '$ resource is defined');
         assert.ok(info.isExternal, '$ resource is external');
         assert.strictEqual(info.handle, window.jQuery, '$ resource handle matches global jQuery varaible');
     });
@@ -963,8 +1021,8 @@
     QUnit.test('basic lazy loading', function (assert) {
         /// <param name="assert" type="QUnit.Assert" />  
         resource.reset();
-        resource.immediateResolve = false;
-        resource.debug = true;
+        resource.config.immediateResolve = false;
+        resource.config.debug = true;
 
         //      a
         //    / | \
@@ -976,35 +1034,34 @@
 
         define('a', createResourceInit('a'));
 
-        var aInfo = resource.getResourceInfo('a');
-        assert.ok(aInfo.defined, 'a is defined');
-        assert.notOk(aInfo.resolved, 'a is *NOT* resolved');
+        var aInfo = resource.describe('a');
+        assert.ok(aInfo.isDefined, 'a is defined');
+        assert.notOk(aInfo.isResolved, 'a is *NOT* resolved');
 
         define('b', ['a'], createResourceInit('b'));
         define('c', ['a'], createResourceInit('c'));
         define('d', ['a'], createResourceInit('d'));
         define('e', ['b', 'c'], createResourceInit('e'));
 
-        aInfo = resource.getResourceInfo('a');
-        assert.notOk(aInfo.resolved, 'a is still *NOT* resolved');
+        aInfo = resource.describe('a');
+        assert.notOk(aInfo.isResolved, 'a is still *NOT* resolved');
 
         require('e', function (e) {
             assert.strictEqual(e.name, 'e', 'verify injected \'e\' module');
         });
 
-        aInfo = resource.getResourceInfo('a');
-        assert.ok(aInfo.resolved, 'a is now resolved');
+        aInfo = resource.describe('a');
+        assert.ok(aInfo.isResolved, 'a is now resolved');
 
-        var dInfo = resource.getResourceInfo('d');
-        assert.notOk(dInfo.resolved, 'd is still *NOT* resolved');
+        var dInfo = resource.describe('d');
+        assert.notOk(dInfo.isResolved, 'd is still *NOT* resolved');
     });
-
 
     QUnit.test('remote file lazy loading', function (assert) {
         /// <param name="assert" type="QUnit.Assert" />  
         resource.reset();
-        resource.immediateResolve = false;
-        resource.debug = true;
+        resource.config.immediateResolve = false;
+        resource.config.debug = true;
 
         //               lib-a                  - remote-lib-a.js
         //             /    |    \
@@ -1018,15 +1075,15 @@
 
         define.remote('lib-a', 'js/lib-a.js');
 
-        // Make QUnit wait for all this to complete
-        var aDone = assert.async();
-        var bDone = assert.async();
-        var jsonDone = assert.async();
-        var anonDone = assert.async();
+        // Make QUnit wait for all this to complete 
+        var aDone = wrapAsync(assert, 'resolve a', 2000);
+        var bDone = wrapAsync(assert, 'resolve b', 2000);
+        var jsonDone = wrapAsync(assert, 'resolve json', 2000);
+        var anonDone = wrapAsync(assert, 'resolve anonymous', 2000);
 
-        var libAInfo = resource.getResourceInfo('lib-a');
-        assert.notOk(libAInfo.defined, 'lib-a not yet defined');
-        assert.notOk(libAInfo.resolved, 'lib-a not yet resolved');
+        var libAInfo = resource.describe('lib-a');
+        assert.notOk(libAInfo.isDefined, 'lib-a not yet defined');
+        assert.notOk(libAInfo.isResolved, 'lib-a not yet resolved');
 
         define.remote('lib-b-foo', 'js/lib-b.js');
         define.remote('lib-b-bar', 'js/lib-b.js');
@@ -1038,16 +1095,16 @@
             assert.strictEqual(local.name, 'local', 'verify injected \'local\' module');
             assert.strictEqual(myrsrc.name, 'my-resource', 'verify injected \'my-resource\' module');
 
-            var libAInfo = resource.getResourceInfo('lib-a');
-            assert.ok(libAInfo.resolved, 'lib-a now resolved');
+            var libAInfo = resource.describe('lib-a');
+            assert.ok(libAInfo.isResolved, 'lib-a now resolved');
 
-            var libBFoo = resource.getResourceInfo('lib-b-foo');
-            var libBBar = resource.getResourceInfo('lib-b-bar');
-            assert.ok(libBFoo.defined, 'lib-b-foo is defined');
-            assert.ok(libBFoo.resolved, 'lib-b-foo is resolved');
+            var libBFoo = resource.describe('lib-b-foo');
+            var libBBar = resource.describe('lib-b-bar');
+            assert.ok(libBFoo.isDefined, 'lib-b-foo is defined');
+            assert.ok(libBFoo.isResolved, 'lib-b-foo is resolved');
 
-            assert.ok(libBBar.defined, 'lib-b-bar is defined');
-            assert.notOk(libBBar.resolved, 'lib-b-bar is NOT resolved');
+            assert.ok(libBBar.isDefined, 'lib-b-bar is defined');
+            assert.notOk(libBBar.isResolved, 'lib-b-bar is NOT resolved');
 
             define.remote('lib-b-baz', 'js/lib-b.js');
 
@@ -1059,7 +1116,7 @@
         require('my-resource-1.0.0', jsonDone);
     });
 
-    QUnit.module('lazy loading');
+    QUnit.module('Validation');
 
     QUnit.test('Prevent redefinition', function (assert) {
         /// <param name="assert" type="QUnit.Assert" /> 
@@ -1070,12 +1127,12 @@
 
         define('a', def_1);
 
-        assert.strictEqual(resource.getResource('a'), def_1, 'a module defined');
+        assert.strictEqual(resource.get('a'), def_1, 'a module defined');
 
         define('a', def_2);
 
-        assert.strictEqual(resource.getResource('a'), def_1, 'a module retains original definition');
-        assert.notStrictEqual(resource.getResource('a'), def_2, 'a module ignores redefinition');
+        assert.strictEqual(resource.get('a'), def_1, 'a module retains original definition');
+        assert.notStrictEqual(resource.get('a'), def_2, 'a module ignores redefinition');
     });
 
     QUnit.test('Prevent overwriting of existing global variable module', function (assert) {
@@ -1090,8 +1147,8 @@
 
         define('jQuery', redef_jQuery, true);
 
-        assert.strictEqual(resource.getResource('jQuery'), current_jQuery, 'jQuery is still global value');
-        assert.notStrictEqual(resource.getResource('jQuery'), redef_jQuery, 'jQuery redefinition ignored');
+        assert.strictEqual(resource.get('jQuery'), current_jQuery, 'jQuery is still global value');
+        assert.notStrictEqual(resource.get('jQuery'), redef_jQuery, 'jQuery redefinition ignored');
     });
 
     QUnit.test('Redefinition throws exception when ignoreRedefine == false', function (assert) {
@@ -1103,18 +1160,18 @@
 
         define('a', def_1);
 
-        assert.strictEqual(resource.getResource('a'), def_1, 'a module defined');
+        assert.strictEqual(resource.get('a'), def_1, 'a module defined');
 
-        resource.ignoreRedefine = false;
+        resource.config.ignoreRedefine = false;
 
         assert.throws(function () {
             define('a', def_2);
         }, /Resource 'a' is already defined/, 'Redifintion throws exception');
 
-        resource.ignoreRedefine = true;
+        resource.config.ignoreRedefine = true;
 
-        assert.strictEqual(resource.getResource('a'), def_1, 'a module retains original definition');
-        assert.notStrictEqual(resource.getResource('a'), def_2, 'a module ignores redefinition');
+        assert.strictEqual(resource.get('a'), def_1, 'a module retains original definition');
+        assert.notStrictEqual(resource.get('a'), def_2, 'a module ignores redefinition');
     });
 
     QUnit.test('define arguments', function (assert) {
@@ -1143,10 +1200,10 @@
         /// <param name="assert" type="QUnit.Assert" />         
 
         define('foo-1', { name: 'foo-1' });
-        assert.ok(resource.isDefined('foo-1'));
+        assert.ok(resource.is.defined('foo-1'));
         resource.destroy('foo-1');
-        assert.strictEqual(resource.isDefined('foo-1'), false, 'destroy removes the module');
-        assert.strictEqual(resource.getResourceInfo('foo-1'), null, 'destroy removes module info');
+        assert.strictEqual(resource.is.defined('foo-1'), false, 'destroy removes the module');
+        assert.strictEqual(resource.describe('foo-1'), null, 'destroy removes module info');
 
         // Can redfine
         define('foo-1', { name: 'foo-1' });

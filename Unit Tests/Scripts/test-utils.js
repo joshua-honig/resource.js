@@ -28,7 +28,9 @@
 
     function select(source, propName) {
         var result = [];
+        var srcArray = _isArray(source);
         for (var k in source) {
+            if (srcArray && isNaN(+k)) continue;
             result.push(source[k][propName]);
         }
         return result;
@@ -41,6 +43,38 @@
             if (isNaN(k)) continue;
             result.push(source[k]);
         }
+        return result;
+    }
+
+    function _allMembersEqual(value, expected, actual) {
+        if (value === expected) return true;
+        if (expected == null) return false;
+
+        if ((value instanceof Date) && (expected instanceof Date)) {
+            return value.valueOf() === expected.valueOf();
+        }
+
+        var result = true;
+        if (actual == null) {
+            actual = (expected instanceof Array) ? [] : {};
+        }
+        for (var k in expected) {
+            var actualVal = actual[k] = value[k];
+            var expectedVal = expected[k];
+            var itemResult = (actualVal === expectedVal);
+
+            if (!itemResult && ('object' == typeof actualVal)) {
+                //if ((expectedVal instanceof Array) && (actualVal instanceof Array)) {
+                //    itemResult = _sameItems(actualVal, expectedVal);
+                //} else {
+                var renderedActual = (expectedVal instanceof Array) ? [] : {};
+                itemResult = _allMembersEqual(actualVal, expectedVal, renderedActual);
+                actual[k] = renderedActual;
+                //}
+            }
+            if (!itemResult) result = false;
+        }
+
         return result;
     }
 
@@ -62,11 +96,11 @@
         // Normalize sparse arrays:
         value = arrayValues(value);
         expected = arrayValues(expected);
-         
+
         if (value.length != expected.length) {
             return false;
         }
-         
+
         var lng = value.length;
         var test = value.concat();
 
@@ -86,12 +120,26 @@
         return true;
     };
 
+    function _propSorter(propName) {
+        return function (a, b) {
+            if (a == null || b == null) return 0;
+            var aVal = a[propName];
+            var bVal = b[propName];
+
+            if (aVal == bVal) return 0;
+            if (aVal == null || bVal == null) return 0;
+            return (aVal < bVal) ? -1 : 1;
+        };
+    }
+
     return {
         isFunction: _isFunction,
         isArray: _isArray,
         toArray: _toArray,
         clearGlobal: clearGlobal,
         select: select,
-        sameItems: _sameItems
+        sameItems: _sameItems,
+        allMembersEqual: _allMembersEqual,
+        propSorter: _propSorter
     };
 })();
