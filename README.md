@@ -251,10 +251,62 @@ resource.js provides a handful of configuration options to tweak how it behaves.
 |external.interval|number|100|read-write|Interval in milliseconds between automatic checks for resolved external resources|
 |external.timeout|number|10000|read-write|Timeout in milliseconds for automatic checking for resolved external resources|
 
+#### Syntax
+```TypeScript
+resource.config.debug = true|false;
+resource.config.ignoreRedefine = true|false;
+resource.config.immediateResolve = true|false;
+resource.config.external.autoResolve = true|false;
+resource.config.external.interval = <number >= 10>;
+resource.config.external.timeout = <number >= 10>;
+
+resource.config.useJQuery(jQuery:Function):void;
+resource.config.useAxios(axios:Function):void;
+```
+
+### `ignoreRedefine`
+
+By default, resource.js will silently ignore attempts to redefine the same resource id, though it will print a warning message indicating this. If `ignoreRedefine` is set to false, resource.js will instead throw an Error. Either way, resource.js will never allow a resource definition to be overwritten.
+
+### `immediateResolve`
+
+By default, resource.js will defer execution or assignment of resource definitions until the resource has been directly or indirectly referenced in a call to `require`. If `immediateResolve` is set to true, resource.js will instead immediately attempt to resolve any resource definitions. This is of course discouraged. If you rely on a named resource to be executed to set up certain global state or other side effects, it is recommended that instead you simply `require` this resource explicitly:
+
+```javascript
+define('polluting-module', function() { ... });
+
+// elsewhere
+require('polluting-module', function() { /* do nothing. Just ensure polluting-module is executed */ });
+
+// if you REALLY want to immediately resolve all resources:
+resource.config.immediateResolve = true;
+```
+
+### `external.autoResolve`
+
+By setting the `resource.config.external.autoResolve` property to `true`, you can instruct resource.js to attempt to automatically match referenced resources IDs against existing global variables. This will not trigger automatic rechecking as with `define.external`. 
+
+```javascript
+resource.config.external.autoResolve = true;
+
+define('time-utils', ['base-utils', 'moment'], function() { ... });  
+// resource.js will now check to see if 'base-utils' or 'moment' are defined global varaibles. If they
+// are, then resource.js will automatically add them as defined resources.
+```
+
+A safer approach is to leave `external.autoResolve` set to `false` and instead explicitly declare external resources:
+
+```javascript
+// This is probably a better idea
+resource.config.external.autoResolve = false; // this is the default
+
+define.external('moment'); 
+define('time-utils', ['base-utils', 'moment'], function() { ... }); 
+```
 
 # Cleanup
 
-AMD loaders don't really have a concept of disposing of a module, because in a narrow understanding of resource as *only* JavaScript modules it doesn't make much sense. The expense is generally in the GET request to fetch the script file and then in executing the definition itself. Neither of these can be undone. 
+AMD loaders don't really have a concept of disposing of a module, because in a narrow understanding of resources as *only* JavaScript modules it doesn't make much sense. The expense is generally in the GET request to fetch the script file and then in executing the definition itself. Neither of these can be undone. 
 
 resource.js is intentionally built to manage any kind of resource, and sometimes the expense of a data resource is in the memory it occupies, and we want to release that memory when the resource is no longer needed in the lifetime of a page. resource.js provides two mechanisms to accomodate this: `resource.destroy` to release a single named resource, and the concept of `Context`s to manage and release whole related collections of resources.
 
