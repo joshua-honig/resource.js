@@ -289,19 +289,29 @@ By setting the `resource.config.external.autoResolve` property to `true`, you ca
 ```javascript
 resource.config.external.autoResolve = true;
 
-define('time-utils', ['base-utils', 'moment'], function() { ... });  
-// resource.js will now check to see if 'base-utils' or 'moment' are defined global varaibles. If they
-// are, then resource.js will automatically add them as defined resources.
+define('time-utils', ['base-utils', 'tz-map', 'moment'], function() { ... });  
+// For each of 'base-utils', 'tz-map', and 'moment': resource.js will as always first
+// check to see if the resource id is already defined. If the resource id is *not* 
+// defined but there *is* an exactly matching global variable, then resource.js
+// will automatically define a resource with the same name, and with the current value
+// of the global variable. 
 ```
 
 A safer approach is to leave `external.autoResolve` set to `false` and instead explicitly declare external resources:
 
 ```javascript
-// This is probably a better idea
+// This is probably a better idea:
 resource.config.external.autoResolve = false; // this is the default
 
-define.external('moment'); 
-define('time-utils', ['base-utils', 'moment'], function() { ... }); 
+// Explicitly declare a module called 'moment', defined by the global variable of the same name.
+// If the global variable doesn't exist, keep checking until it does, per interval and timeout settings:
+define.external('moment');  
+ 
+define('time-utils', ['base-utils', 'tz-map', 'moment', 'jquery'], function() { ... }); 
+
+// As with any other definition, it doesn't matter if you call define before or after 
+// dependent define and require calls:
+define.external('jquery', 'jQuery'); 
 ```
 
 # Cleanup
