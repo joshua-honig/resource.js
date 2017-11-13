@@ -239,6 +239,17 @@ function openBuildingViewer(mode) {
 
 # Configuration
 
+resource.js provides a handful of configuration options to tweak how it behaves. All properties are under `resource.config`
+
+|Property|Type|Default|Access|Description|
+|--------|----|-------|------|-----------|
+|debug|boolean|false|read-write|Whether to print debug messages to the console while resolving resources|
+|ignoreRedefine|boolean|**true**|read-write|Whether to ignore redefinitions of resource ids. If true, redefinition will be ignored. If false, resource.js will throw an Error|
+|immediateResolve|boolean|false|read-write|Whether to attempt to immediately resolve resources defined with `define`. If false, resources will only be resolved when they are referred to directly or indirectly via a call to `require`|
+|ajaxProvider|string|null|read only|Indicates the currently loaded ajax provider ('axios', 'jquery' or null). To set this value, use the `useJQuery` or `useAxios` methods|
+|external.autoResolve|boolean|**true**|read-write|Whether to automatically attempt to match resource IDs to global variables|
+|external.interval|number|100|read-write|Interval in milliseconds between automatic checks for resolved external resources|
+|external.timeout|number|10000|read-write|Timeout in milliseconds for automatic checking for resolved external resources|
 
 
 # Cleanup
