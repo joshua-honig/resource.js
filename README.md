@@ -28,6 +28,11 @@ Although resource.js can be used to define JavaScript modules, a resource can be
      - [Retrieve a resource](#retrieve-an-already-resolved-resource)
    - [`define.external`](defineexternal)
    - [`define.remote`](#defineremote)
+ - [Configuration](#configuration)
+ - [Cleanup](#cleanup)
+   - [`resource.destroy`](#resourcedestroy)
+   - [`Context.create`](#contextcreate)
+   - [`Context.destroy`](#contextdestroy)
 
 # Basic usage
 resource.js defines global `define` and `require` methods that behave similar to standard [AMD loaders](https://github.com/amdjs/amdjs-api/wiki/AMD) such as [require.js](http://requirejs.org/). 
@@ -231,3 +236,55 @@ function openBuildingViewer(mode) {
     }
 }
 ```
+
+# Configuration
+
+
+
+# Cleanup
+
+AMD loaders don't really have a concept of disposing of a module, because in a narrow understanding of resource as *only* JavaScript modules it doesn't make much sense. The expense is generally in the GET request to fetch the script file and then in executing the definition itself. Neither of these can be undone. 
+
+resource.js is intentionally built to manage any kind of resource, and sometimes the expense of a data resource is in the memory it occupies, and we want to release that memory when the resource is no longer needed in the lifetime of a page. resource.js provides two mechanisms to accomodate this: `resource.destroy` to release a single named resource, and the concept of `Context`s to manage and release whole related collections of resources.
+
+## `resource.destroy`
+
+resource.destroy is very simple: It simply removes the provided resource id from the resource.js registry. This does not guarantee the resource can be garbage collected, nor does it "undefine" the value of the resource already injected into other contexts. This is most useful when cleaning up strongly-named resources associated with a chunk of a single page application or other long-lived page.
+
+#### Syntax
+
+```TypeScript
+resource.destroy(resourceID:string):void
+```
+
+### Example
+```javascript
+// Generated on the server with an injected guid:
+const widget_id  = 3023;
+const component_guid = '8d5b00b3db9043bd87bb952ccb2f3c29';
+const history_rsrc = 'widget-history-' + component_guid;
+const relations_rsrc = 'widget-relations-' + component_guid;
+const graph_rsrc = 'widghet-graph-' + component_guid;
+
+// Fetch these json blobs in parallel:
+define.remote(history_rsrc, '/widget/history/' + widget_id, true);
+define.remote(relations_rsrc, '/widget/relations/' + widget_id, true);
+define.remote(graph_rsrc, '/widget/graph/' + widget_id, true);
+
+require([history_rsrc, relations_rsrc, graph_rsrc, 'app-utils', 'jquery', 'app-forms', 'widget-forms'], 
+    function(history, relations, graph) {
+        let $ = require('jquery');
+        let $form = $('#div-' + component_guid);
+        let widgetForm = require('app-widget-form');
+        new widgetForm($form, component_guid, history, relations, graph);
+    }
+);
+
+// In widget.dispose:
+function dispose() {
+    resource.destroy('widget-history-' + this.guid);
+    resource.destroy('widget-relations-' + this.guid);
+    resource.destroy('widget-graph-' + this.guid);
+}
+```
+ 
