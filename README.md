@@ -10,6 +10,24 @@ resource.js is a dependency loader. You `define` and `require` resources; resour
 
 ## What it is not
 resource.js is **not** an Asynchronous Module Definition loader; at least it does not implement the full [AMD spec](https://github.com/amdjs/amdjs-api/wiki/AMD). Specifically, resource.js does not support path-based references, or any source code modification.
+ 
+## resource != file
+resource.js is completely decoupled from the file system. resource.js requires no bundler; and at the same time bundling simply by concatenation just works. As noted above, resource.js does not modify source files or support path-based references. This requires that all `define` calls include an explicit resource id, all dependencies must be listed explicitly (they will not be hoisted CommonJS-style), and all dependency identifiers must be bare and globally unique. 
+
+## resource != JavaScript module
+Although resource.js can be used to define JavaScript modules, a resource can be any valid value referencable from JavaScript. 
+
+# Quick Docs
+
+ - [Basic usage](#basic-usage)
+   - [`define`](#define)
+     - [JavaScript modules via factory functions](#javascript-modules-via-factory-functions)
+     - [Literal values](#literal-values)
+   - [`require`](#require)
+     - [Execute an action](#schedule-an-anonymous-function-to-be-invoked-when-all-dependencies-are-resolved)
+     - [Retrieve a resource](#retrieve-an-already-resolved-resource)
+   - [`define.external`](defineexternal)
+   - [`define.remote`](#defineremote)
 
 # Basic usage
 resource.js defines global `define` and `require` methods that behave similar to standard [AMD loaders](https://github.com/amdjs/amdjs-api/wiki/AMD) such as [require.js](http://requirejs.org/). 
@@ -150,10 +168,66 @@ define.external(
 };
 ```
 
-# Notes
+## `define.remote`
 
-## resource != file
-resource.js is completely decoupled from the file system. resource.js requires no bundler; and at the same time bundling simply by concatenation just works. As noted above, resource.js does not modify source files or support path-based references. This requires that all `define` calls include an explicit resource id, all dependencies must be listed explicitly (they will not be hoisted CommonJS-style), and all dependency identifiers must be bare and globally unique. 
+define.remote allows you to declare a url from which a named resource should be loaded when it is required. Multiple resources can be associated with the same url, accommodating bundled scripts. The default usage assumes that the target url is a script file which, when executed, will itself call `define` to concretely define the applicable resources. Alternatively, you can indicate that the url represents a literal content resource (json, html, etc). 
 
-## resource != JavaScript module
-Although resource.js can be used to define JavaScript modules, a resource can be any valid value referencable from JavaScript. 
+**Note:** the order in which `define.remote` and `define` is called doesn't matter. The only requirement is that `define` and `define.remote` can only be called once each for the same resourceID.
+
+#### Syntax
+```typescript
+define.remote(resourceID:string, url:string):void
+define.remote(resourceIDs:string[], url:string):void 
+define.remote(resourceID:string, url:string, isLiteral:boolean):void
+```
+
+### Declaring the location of a module
+As noted above, resource.js makes a different decision than conformant AMD module loaders when it comes to file paths and lazy loading. In AMD loaders, dependency strings are treated as paths relative to the file in which `require` or `define` is called. This gives you path-based lazy-loading of script files for free, but requires that all of your modules know where they are on disk relative to each other, and also precludes bundling unless you introduce a transpiling JavaScript build step. 
+
+resource.js makes no assumptions about the file structure of your modules or other resources. The cost of this is that lazy loading requires you to explicitly declare the location of resources. In practice, all of these declarations can go in a single manifest script. Further, you will generally have one version of the manifest script for dev, where most script modules are in their own files, and another for prod, where script modules are consolidated into a small number of bundle files.
+
+```javascript
+// In manifest-dev.js:
+define.remote('app-user-form', '/js/admin/app-user-form.js');
+define.remote('app-roles-form', '/js/admin/app-roles-form.js');
+define.remote('app-group-form', '/js/admin/app-group-form.js');
+define.remote('app-user-audit', '/js/admin/app-user-form.js');
+
+// In manifest-prod.js
+// It's ok to use the same url for multiple resources
+const adminBundleUrl = '/dist/js/adminForms.js';
+define.remote('app-user-form', adminBundleUrl);
+define.remote('app-roles-form', adminBundleUrl);
+define.remote('app-group-form', adminBundleUrl);
+define.remote('app-user-audit', adminBundleUrl);
+
+// ... But it's more convenient to use array syntax for this
+define.remote(['app-user-form', 'app-roles-form', 'app-group-form', 'app-user-audit'], adminBundleUrl);
+```
+
+### Declaring content resources
+define.remote can also be used to succinctly define content resources. This is useful for declaring expensive or dynamic data that only needs to be loaded in certain situations (such as going to a certain route in a single page application), and simplifies the logic for fetching such resources compared to more complex chains of `Promises`s or other callback strategies.
+
+```javascript
+// Compiled data blobs for building walkthrough
+define.remote('asset-hq-building', '/models/compiledAsset?modelId=hq-building', true);
+define.remote('asset-hq-hvac', '/models/compiledAsset?modelId=hq-hvac', true);
+define.remote('asset-hq-wan', '/models/compiledAsset?modelId=hq-wan', true);
+ 
+// If user loads the building viewer, load the assets
+function openBuildingViewer(mode) {
+    ... /* other stuff */
+    viewer.init();
+    require('asset-hq-building', function(asset) { viewer.load(asset) }); 
+    
+    switch(mode) {
+        case 'hvac':
+            require('asset-hq-hvac', function(asset) { viewer.load(asset) }); 
+            break;
+            
+        case 'wan':
+            require('asset-hq-wan', function(asset) { viewer.load(asset) }); 
+            break;
+    }
+}
+```
