@@ -1,4 +1,7 @@
 # resource.js
+
+> See the [wiki for complete docs](https://github.com/joshua-honig/resource.js/wiki)!
+
 resource.js is a lightweight, flexible dependency loader for JavaScript. It loads "things" -- scripts, json, object references, or anything else -- in the right order. That's it! 
 
 The API was designed to be obvious, and is focused on working directly with plain JavaScript or other assets. Unlike other JavaScript module loaders, there are no constraints whatsoever about the format of files, the type of the resource, or the file layout of a project. 
