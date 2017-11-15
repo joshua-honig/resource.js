@@ -1,4 +1,7 @@
 # resource.js
+
+> See the [wiki for complete docs](https://github.com/joshua-honig/resource.js/wiki)!
+
 resource.js is a lightweight, flexible dependency loader for JavaScript. It loads "things" -- scripts, json, object references, or anything else -- in the right order. That's it! 
 
 The API was designed to be obvious, and is focused on working directly with plain JavaScript or other assets. Unlike other JavaScript module loaders, there are no constraints whatsoever about the format of files, the type of the resource, or the file layout of a project. 
@@ -325,7 +328,7 @@ resource.js is intentionally built to manage any kind of resource, and sometimes
 
 ## `resource.destroy`
 
-resource.destroy is very simple: It simply removes the provided resource id from the resource.js registry. This does not guarantee the resource can be garbage collected, nor does it "undefine" the value of the resource already injected into other contexts. This is most useful when cleaning up strongly-named resources associated with a chunk of a single page application or other long-lived page.
+resource.destroy is very simple: It removes the provided resource id from the resource.js registry, and will invoke a [destructor method](#resource-destructor) if it finds one. This does not guarantee the resource can be garbage collected, nor does it "undefine" the value of the resource already injected into other contexts. This is most useful when cleaning up strongly-named resources associated with a chunk of a single page application or other long-lived page.
 
 #### Syntax
 
@@ -364,3 +367,15 @@ function dispose() {
 }
 ```
  
+### Resource destructor
+
+When invoking `destroy` on a resource, resource.js will check if the resource value has a member called `~` (tilde) that is a function. If so, the resource.js will attempt to invoke that method on the resource value without any arguments. This is the equivalent to the following:
+
+```javascript
+let value = resource.get('resource-id')
+if(value != null && ('function' == typeof value['~'])) {
+    try {
+        value[~]();
+    } catch { /* ignore */ }
+}
+```
