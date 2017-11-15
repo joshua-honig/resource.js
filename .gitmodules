@@ -1,0 +1,3 @@
+[submodule "wiki"]
+	path = docs/resource.js.wiki
+	url = https://github.com/joshua-honig/resource.js.wiki.git
