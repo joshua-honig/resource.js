@@ -15,7 +15,7 @@ resource.js is **not** an Asynchronous Module Definition loader; at least it doe
 resource.js is completely decoupled from the file system. resource.js requires no bundler; and at the same time bundling simply by concatenation just works. As noted above, resource.js does not modify source files or support path-based references. This requires that all `define` calls include an explicit resource id, all dependencies must be listed explicitly (they will not be hoisted CommonJS-style), and all dependency identifiers must be bare and globally unique. 
 
 ## resource != JavaScript module
-Although resource.js can be used to define JavaScript modules, a resource can be any valid value referencable from JavaScript. 
+Although resource.js can be used to define JavaScript modules, a resource can be any valid value referenceable from JavaScript. 
 
 # Quick Docs
 
@@ -26,7 +26,7 @@ Although resource.js can be used to define JavaScript modules, a resource can be
    - [`require`](#require)
      - [Execute an action](#schedule-an-anonymous-function-to-be-invoked-when-all-dependencies-are-resolved)
      - [Retrieve a resource](#retrieve-an-already-resolved-resource)
-   - [`define.external`](defineexternal)
+   - [`define.external`](#defineexternal)
    - [`define.remote`](#defineremote)
  - [Configuration](#configuration)
  - [Cleanup](#cleanup)
@@ -96,7 +96,7 @@ require(['jquery', 'app-user-form'], function($, UserForm) {
 
 // If there is only on dependency, it can be provided as a bare string
 require('all-the-things', function(things) {
-
+    things.doStuff();
 });
 ```
 
@@ -270,13 +270,16 @@ By default, resource.js will silently ignore attempts to redefine the same resou
 
 ### `immediateResolve`
 
-By default, resource.js will defer execution or assignment of resource definitions until the resource has been directly or indirectly referenced in a call to `require`. If `immediateResolve` is set to true, resource.js will instead immediately attempt to resolve any resource definitions. This is of course discouraged. If you rely on a named resource to be executed to set up certain global state or other side effects, it is recommended that instead you simply `require` this resource explicitly:
+By default, resource.js will defer execution or assignment of resource definitions until the resource has been directly or indirectly referenced in a call to `require`. If `immediateResolve` is set to true, resource.js will instead immediately attempt to resolve any resource definitions. This is of course discouraged. If you rely on a named resource to be executed to set up certain global state or other side effects, it is recommended that instead you simply `require` this resource explicitly, or call `resource.resolve()`:
 
 ```javascript
 define('polluting-module', function() { ... });
 
 // elsewhere
 require('polluting-module', function() { /* do nothing. Just ensure polluting-module is executed */ });
+
+// OR: Attempt to resolve a resource without require:
+resource.resolve('polluting-module');
 
 // if you REALLY want to immediately resolve all resources:
 resource.config.immediateResolve = true;

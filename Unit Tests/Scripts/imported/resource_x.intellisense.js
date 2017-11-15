@@ -1,16 +1,7 @@
 ﻿/// <reference path="resource.js" /> 
 
-var __create = resource.Context.create;
-
-// Wrap Context.create so that new contexts are also annotated 
-resource.Context.create = function () {
-    var _context = __create.apply(null, arguments);
-    _annotate_context(_context);
-    return _context;
-};
-
 intellisense.annotate(resource.Context, function () {
-    /// <summary>The instance class of the resource loader. [window/global].resource is an instance. Additional named contexts can be created through resource.Context.create()</summary>
+    /// <summary>The instance class of the resource loaded. window.resource is an instance. Additional named contexts can be created through resource.Context.create()</summary>
 });
 
 /* Context static methods */
@@ -22,6 +13,7 @@ intellisense.annotate(resource.Context, {
         ///   <param name="force" type="Boolean" optional="true">Default false. Whether to overwrite an existing named context with the same name.</param>
         ///   <returns type="Context" />
         /// </signature> 
+
     },
     'get': function (name, create) {
         /// <signature>
@@ -138,7 +130,7 @@ function _annotate_context(context) {
         },
         'require': function () {
             /// <signature>
-            ///   <summary>Gets the value of a named resource. Returns null if the resource has not been defined or resolved</summary>
+            ///   <summary>Gets the content or result of a named resource. Returns null if the resource has not been defined or resolved</summary>
             ///   <param name="resourceID" type="String" /> 
             /// </signature> 
             /// <signature>
@@ -170,34 +162,13 @@ function _annotate_context(context) {
             /// </signature>  
         },
         'get': function () {
-            /// <signature>
-            ///   <summary>Gets the value of a named resource. Returns null if the resource has not been defined or resolved</summary>
-            ///   <param name="resourceID" type="String" /> 
-            /// </signature> 
+
         },
         'describe': function () {
             /// <signature>
             ///   <summary>Gets a copy of externally visible information about a resource. Returns null if the resource has never been defined or referenced.</summary>
-            ///   <param name="resourceID" type="String" /> 
-            /// </signature>
-        },
-        'list': function () {
-            /// <signature>
-            ///   <summary>Return a list of ResourceInfos describing the actions, resources, and/or internal url resources in the Context's registry</summary>
-            ///   <param name="includeResources" type="boolean" optional="true">Default true. Whether to include information about named resources, as registered with define or referenced via dependency lists</param>
-            ///   <param name="includeActions" type="boolean" optional="true">Default true. Whether to include information about actions registered with require</param>
-            ///   <param name="includeDefined" type="boolean" optional="true">Default undefined. Whether to filter for defined or undefined resources. If this argument is not provided, both defined and undefined resources will be included</param>
-            ///   <param name="includeResolved" type="boolean" optional="true">Default undefined. Whether to filter for resolved or resolved resources. If this argument is not provided, both resolved and unresolved resources will be included</param>
-            ///   <param name="includeUrls" type="boolean" optional="true">Default false. Whether to include information about internal url resources, which represent unique urls referenced via define.remote</param>
-            /// </signature> 
-        },
-        'printUnresolved': function () {
-            /// <signature>
-            ///   <summary>Print a formatted list of any undefined resources, unresolved resources, and unresolved actions to the console</summary>
-            /// </signature>
-            /// <signature>
-            ///   <summary>Generate a formatted list of any undefined resources, unresolved resources, and unresolved actions and return it as text or print it to the console</summary>
-            ///   <param name="returnText" type="Boolean" optional="true">Default false. Wether to return the text of the messages instead of printing it to the console</param>
+            ///   <param name="resourceID" type="String" />
+            ///   <param name="expandDependsOn" type="Boolean" optional="true">Default false. true to expand the depends on names to separate resolved and unresolved lists</param>
             /// </signature>
         }
     });
@@ -254,55 +225,24 @@ function _annotate_context(context) {
         'default': false,
 
         'defined': function () {
-            /// <signature>
-            ///   <summary>Determine whether the provided resourceID has been defined</summary>
-            ///   <param name="resourceID" type="String">The unique key or name of the resource</param>
-            /// </signature>
         },
 
         'resolved': function () {
-            /// <signature>
-            ///   <summary>Determine whether the provided resourceID has been resolved</summary>
-            ///   <param name="resourceID" type="String">The unique key or name of the resource</param>
-            /// </signature>
         }
     });
 
     intellisense.annotate(context.list, {
         'all': function () {
-            /// <signature>
-            ///   <summary>Return information about all resources, actions, and internal url resources</summary> 
-            /// </signature>
-        },
-        'defined': function () {
-            /// <signature>
-            ///   <summary>Return information about all defined resources and actions</summary> 
-            /// </signature>
-        },
-        'undefined': function () {
-            /// <signature>
-            ///   <summary>Return information about all undefined resources. A resource exists in the registry but is undefined if its ID has been referenced in a dependency list, but define has not been called for the resource</summary> 
-            /// </signature>
         },
         'resolved': function () {
-            /// <signature>
-            ///   <summary>Return information about all resolved resources. Actions are immediately removed when they are executed, so there are no "resolved" actions in the resource.js registry</summary> 
-            /// </signature>
         },
         'unresolved': function () {
-            /// <signature>
-            ///   <summary>Return information about all unresolved resources and actions</summary> 
-            /// </signature>
         },
-        'resources': function () {
-            /// <signature>
-            ///   <summary>Return information about resources defined with define or referenced via a dependency list</summary> 
-            /// </signature>
+        'defined': function () {
         },
-        'actions': function () {
-            /// <signature>
-            ///   <summary>Return information about pending actions registered with require. By definition, all returned ResourceInfos will have isDefined = true and isResolved = false.</summary> 
-            /// </signature>
+        'undefined': function () {
+        },
+        'anonymous': function () {
         }
     });
 }
@@ -310,4 +250,14 @@ function _annotate_context(context) {
 // Annotate the members on the default window.resource context instance
 _annotate_context(resource);
 
+// Wrap Context.create so that new contexts are also annotated
+var __create = resource.Context.create;
+resource.Context.create = function (name, force) {
+    var _context = __create(name, force);
+    _annotate_context(_context);
+    return _context;
+};
+
+// Redirect "go to definition" so that is goes to the actual definition of Context.create
+intellisense.redirectDefinition(resource.Context.create, __create);
 

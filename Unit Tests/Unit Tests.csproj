@@ -49,6 +49,7 @@
     <Content Include="Content\qunit-2.0.1.css" />
     <Content Include="packages.config" />
     <None Include="Scripts\imported\resource.intellisense.js" />
+    <Content Include="Scripts\axios.min.js" />
     <Content Include="Scripts\imported\resource.js" />
     <Content Include="Scripts\qunit-2.0.1.js" />
     <Content Include="Scripts\qunit-assert-html.js" />

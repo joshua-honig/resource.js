@@ -14,8 +14,10 @@ if (Test-Path $packageDir) {
 }
 
 $scriptPath = Join-Path $packageDir resource-$version.js
+$docPath = Join-Path $packageDir resource-$version.intellisense.js
 Write-Host "Copying source script to:`r`n   $scriptPath"
 Copy-Item $thisDir\..\..\resource-js\src\resource.js $scriptPath
+Copy-Item $thisDir\..\..\resource-js\src\resource.intellisense.js $docPath
 
 [void][Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic')
 $apiKey = ([string]([Microsoft.VisualBasic.Interaction]::InputBox('Enter the resource.js nuget.org API key', 'Enter API Key'))).Trim()

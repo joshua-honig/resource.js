@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26730.16
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "resource-js", "resource-js\resource-js.csproj", "{85A1157F-C959-4AC2-A6C5-ED85CBF68AF1}"
 EndProject
@@ -9,8 +9,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Unit Tests", "Unit Tests\Un
 EndProject
 Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "deploy", "deploy\deploy.shproj", "{EE9FE622-B66D-44CD-BF34-F37485558BB8}"
 EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "docs", "docs\docs.shproj", "{881A6388-9740-4A28-BEBD-71C0328235B4}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		docs\docs.projitems*{881a6388-9740-4a28-bebd-71c0328235b4}*SharedItemsImports = 13
 		deploy\deploy.projitems*{ee9fe622-b66d-44cd-bf34-f37485558bb8}*SharedItemsImports = 13
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

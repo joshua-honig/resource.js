@@ -1,7 +1,5 @@
-﻿/// <reference path="resource.js" /> 
  
-var ctx = resource.Context.create('foo');
 
 
-
-ctx.Context.create
+define('jquery', window.jQuery);
+var info = resource.describe('jquery');

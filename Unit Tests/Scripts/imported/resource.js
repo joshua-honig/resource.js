@@ -2,12 +2,23 @@
 
 (function () {
 
-    var RESOURCE_JS_VERSION = '0.1.0';
+    // Safely get the root JavaScript object even in strict mode:
+    var ___global = null;
+    try { ___global = window; } catch (e) { }
+    if (___global == null) try { ___global = self; } catch (e) { }
+    if (___global == null) try { ___global = global; } catch (e) { }
+    if (___global == null) try { ___global = root; } catch (e) { }
+
+    var RESOURCE_JS_VERSION = '0.3.0';
     var RESOURCE_JS_KEY = '__resource-js-' + RESOURCE_JS_VERSION;
 
-    if (!window[RESOURCE_JS_KEY]) {
+    if (!___global[RESOURCE_JS_KEY]) {
 
         (function () {
+
+            var __createToken = {};
+            var __defaultContext = null;
+            var _proxyMap = new ___global.Map();
 
             // UTILITY FUNCTIONS
             function _space(count) {
@@ -82,6 +93,8 @@
             var _namedContexts = {};
 
             var $ = null;
+            var axios = null;
+            var ajaxProvider = null;
 
             function _setJQueryModule(value, throwIfInvalid) {
                 if (value == null) {
@@ -95,30 +108,57 @@
                     // Require at least jQuery version 1.11
                     if (((+versionParts[0]) > 1) || ((+versionParts[1]) >= 11)) {
                         $ = value;
+                        axios = null;
+                        ajaxProvider = 'jquery';
                     } else {
                         if (throwIfInvalid) throw new Error('Minimum jQuery version is 1.11');
                     }
                 }
             }
 
-            _setJQueryModule(window.jQuery, false);
+            function _setAxiosModule(value, throwIfInvalid) {
+                if (value == null) {
+                    if (throwIfInvalid) throw new Error('value cannot be null');
+                    return;
+                } if (!value.Axios || ('function' != typeof value.Axios)) {
+                    if (throwIfInvalid) throw new Error('Provided value is not a recognized Axios module');
+                    return;
+                } else {
+                    axios = value;
+                    $ = null;
+                    ajaxProvider = 'axios';
+                }
+            }
+
+            function _ensureAjaxProvider(throwIfNone) {
+                if (ajaxProvider != null) return;
+                if (___global.jQuery) _setJQueryModule(___global.jQuery, false);
+
+                if (ajaxProvider != null) return;
+                if (___global.axios) _setAxiosModule(___global.axios, false);
+
+                if (ajaxProvider != null) return;
+                if (throwIfNone) throw new Error('No ajax provider has been loaded.');
+            }
+
+            _ensureAjaxProvider(false);
 
             function resource() { };
             var resource_module = new resource();
             resource_module.Context = Context;
 
             // CLASSES
-            function Resource(name) {
+            function Resource(id) {
                 /// <field name="dependsOn" type="Array" elementType="Resource" />
                 /// <field name="pendingDependentResources" type="Array" elementType="Resource" />
                 /// <field name="pendingDependentActions" type="Array" elementType="Resource" />
-                this.name = name;
+                this.id = id;
 
                 // The definition
                 this.definition = null;
 
                 // The resolved content or result of invoking the definition
-                this.handle = null;
+                this.value = null;
 
                 this.isAnonymousAction = false;
                 this.thisArg = null;
@@ -143,7 +183,7 @@
                 /// <param name="resource" type="Resource" />
 
                 var isAnonymous = this.isAnonymousAction = resource.isAnonymousAction;
-                this.name = resource.name;
+                this.id = resource.id;
                 this.isDefined = resource.isDefined;
                 this.isResolved = resource.isResolved;
                 this.definition = resource.definition;
@@ -153,17 +193,17 @@
                     this.isExternal = resource.isExternal;
                     this.isRemote = resource.isRemote;
                     if (!_isEmpty(resource.url)) this.url = resource.url;
-                    this.handle = resource.handle;
+                    this.value = resource.value;
                     this.pendingDependents = { resources: [], actions: [] };
                 }
             }
 
             ResourceInfo.prototype.toString = function () {
-                return '[Resource ' + this.name + ']';
+                return '[Resource ' + this.id + ']';
             };
 
             ResourceInfo.prototype.format = function () {
-                var result = '\'' + this.name + '\'';
+                var result = '\'' + this.id + '\'';
                 if (this.isDefined) {
                     var unresolved = this.dependsOn.unresolved;
                     if (unresolved.length > 0) {
@@ -193,21 +233,26 @@
                 var result = {};
                 for (var i = 0; i < this.length; i++) {
                     var info = this[i];
-                    result[info.name] = info;
+                    result[info.id] = info;
                 }
                 return result;
             };
 
-            function compareNames(a, b) { return a.name < b.name ? -1 : 1; };
+            function compareNames(a, b) { return a.id < b.id ? -1 : 1; };
 
-            function getName(x) { return x.name; }
+            function getName(x) { return x.id; }
 
             function formatSet(lines, list, label) {
                 if (list.length == 0) return;
                 if (!_isEmpty(label)) lines.push(label + ':');
                 list.sort(compareNames);
                 for (var i = 0; i < list.length; i++) {
-                    lines.push(list[i].toString());
+                    var item = list[i];
+                    if (_isFunction(item.format)) {
+                        lines.push('  ' + item.format());
+                    } else {
+                        lines.push('  ' + item.toString());
+                    }
                 }
             }
 
@@ -248,6 +293,8 @@
                     throw new TypeError("Context instances must be constructed by calling resource.Context.create()");
                     return;
                 }
+
+                var isDefault = _isEmpty(_context.name);
 
                 var _external = Object.create(null, {
                     // read only :  
@@ -293,9 +340,17 @@
                         set: function (value) { _context.immediateResolve = (value === true); },
                         enumerable: true
                     },
-                    'jQuery': {
-                        get: function () { return $; },
-                        set: function (value) { _setJQueryModule(value, true); },
+
+                    useJQuery: {
+                        value: function (jQuery) { _setJQueryModule(jQuery || (___global.jQuery), true) },
+                        enumerable: true
+                    },
+                    useAxios: {
+                        value: function (axios) { _setAxiosModule(axios || (___global.axios), true); },
+                        enumerable: true
+                    },
+                    ajaxProvider: {
+                        get: function () { return ajaxProvider; },
                         enumerable: true
                     },
 
@@ -346,7 +401,8 @@
                     is: {
                         value: Object.create(null, {
                             defined: { value: _context.isDefined.bind(_context), enumerable: true },
-                            resolved: { value: _context.isResolved.bind(_context), enumerable: true }
+                            resolved: { value: _context.isResolved.bind(_context), enumerable: true },
+                            'default': { value: isDefault, enumerable: true }
                         }), enumerable: true
                     },
                     list: { value: fnList, enumerable: true },
@@ -370,24 +426,50 @@
                     actions: { value: function (defined, resolved) { return fnList(false, true, defined, resolved); }, enumerable: true }
                 });
 
-                // static exports
-                Object.defineProperties(this, {
-                    Context: { value: Context, enumerable: true },
-                    version: { value: RESOURCE_JS_VERSION, enumerable: true },
-                    ResourceInfo: { value: ResourceInfo, enumerable: false },
-                    ResourceInfoCollection: { value: ResourceInfoCollection, enumerable: false }
-                });
+                // static exports of default context (root.resource)
+                if (isDefault) {
+                    Object.defineProperties(this, {
+                        Context: { value: Context, enumerable: true },
+                        version: { value: RESOURCE_JS_VERSION, enumerable: true },
+                        ResourceInfo: { value: ResourceInfo, enumerable: false },
+                        ResourceInfoCollection: { value: ResourceInfoCollection, enumerable: false }
+                    });
+                }
+
+                _proxyMap.set(_context, this);
+                _proxyMap.set(this, _context);
             }
 
-            Context.create = function (name, force) {
-                var isNamed = !_isEmpty(name);
-                if (isNamed && (force !== true) && (_namedContexts.hasOwnProperty(name))) {
-                    throw new Error('Context \'' + name + '\' is already defined');
-                    return;
+            Context.create = function (name, parentContext, force) {
+                validate.argCount(arguments, 1, 'Context.create', true);
+
+                var isNamed = true;
+                if (name === __createToken) {
+                    isNamed = false;
+                } else {
+                    validate.isString(name, 'name', true);
+                    if (arguments.length == 1) {
+                        parentContext = null;
+                        force = false;
+                    } else if ('boolean' == typeof parentContext) {
+                        force = parentContext;
+                        parentContext = null;
+                    } else if (parentContext instanceof Context) {
+                        // Get the internal _Context for the provided Context
+                        parentContext = _proxyMap.get(parentContext);
+                    } else {
+                        throw new Error('Invalid argument. Second argument to Context.create must be a boolean or Context object');
+                        return;
+                    }
+
+                    if (isNamed && (force !== true) && (_namedContexts.hasOwnProperty(name))) {
+                        throw new Error('Context \'' + name + '\' is already defined');
+                        return;
+                    }
                 }
 
                 // Private instance with all required state
-                var _instance = new _Context(name);
+                var _instance = new _Context(name, parentContext);
 
                 // Public proxy 
                 var instance = new Context(_instance);
@@ -395,23 +477,21 @@
                 if (isNamed) {
                     _namedContexts[instance.name] = instance;
                 } else {
-                    // Default context. Export as window.res / window.resource
-                    window.res = window.resource = instance;
+                    // Default context. Export as ___global.res / ___global.resource
+                    __defaultContext = ___global.res = ___global.resource = instance;
 
                     // Backwards compatibility:
-                    window.require = instance.require;
-                    window.define = instance.define;
+                    ___global.require = instance.require;
+                    ___global.define = instance.define;
                 }
 
                 return instance;
-            }
+            };
 
             Context.get = function (name, create) {
                 /// <returns type="Context" />
-                if (_isEmpty(name)) {
-                    throw new Error('\'' + name + '\' cannot be empty');
-                    return;
-                }
+                validate.argCount(arguments, 1, 'Context.get', true);
+                validate.isString(name, 'name', true);
 
                 var context = _namedContexts[name];
                 if (context == null && create) {
@@ -421,11 +501,6 @@
             };
 
             Context.destroy = function (name, recursive, strict) {
-                if (_isEmpty(name)) {
-                    throw new Error('\'' + name + '\' cannot be empty');
-                    return;
-                }
-
                 var context = Context.get(name, false);
                 if (context == null) {
                     if (strict) {
@@ -438,14 +513,16 @@
                     var resources = context.list.resolved();
                     for (var i = 0; i < resources.length; i++) {
                         if (!resource.isAnonymousAction) {
-                            context.destroy(resource.name);
+                            context.destroy(resource.id);
                         }
                     }
                 }
+
+
             };
 
             // API FUNCTIONS
-            function _Context(name) {
+            function _Context(name, parentContext) {
                 /// <field name="id" type="Number" integer="true" />
                 /// <field name="name" type="String" />
                 /// <field name="externalInterval" type="Number" />
@@ -459,9 +536,15 @@
                 /// <field name="ignoreRedefine" type="Boolean" /> 
                 /// <field name="automaticExternals" type="Boolean" /> 
                 /// <field name="immediateResolve" type="Boolean" /> 
+                /// <field name="childContexts" type="Array" elementType="_Context" /> 
+                /// <field name="parentContext" type="_Context" /> 
 
                 this.id = _contextIndex++;
-                this.name = name;
+
+                if ('string' === typeof name) {
+                    this.name = name;
+                }
+
                 this.resources = {};
                 this.resolveDepth = 0;
                 this.anonymousIndex = 1;
@@ -469,6 +552,8 @@
                 this.externalPending = false;
                 this.timeoutHandles = [];
                 this.pendingActions = [];
+                this.childContexts = [];
+                this.parentContext = parentContext;
 
                 this.externalInterval = 100;
                 this.externalTimeout = 10000;
@@ -479,11 +564,11 @@
             _Context.prototype.automaticExternals = true;
             _Context.prototype.immediateResolve = true;
 
-            _Context.prototype.define = function (resourceName) {
+            _Context.prototype.define = function (resourceID) {
 
                 var argCnt = arguments.length;
                 if (!validate.argCount(arguments, 2, 'define', true)) return;
-                if (!validate.isString(resourceName, 'resourceName', true)) return;
+                if (!validate.isString(resourceID, 'resourceID', true)) return;
 
                 var i;
                 var arg1 = arguments[1];
@@ -510,56 +595,42 @@
                     definition = arg1;
                 }
 
-                _define(this, resourceName, dependsOn, definition, isLiteral);
+                _define(this, resourceID, dependsOn, definition, isLiteral);
             };
 
-            _Context.prototype.define_remote = function (resourceName, url, isLiteral) {
-                /// <signature>
-                ///   <summary>Register the remote source of a lazy-loaded resource</summary>
-                ///   <param name="resourceName" type="String">The unique key or name of the resource</param>
-                ///   <param name="url" type="String">The URL to a script file that, when executed, defines the named resource</param> 
-                /// </signature> 
-                /// <signature>
-                ///   <summary>Register the remote source of a lazy-loaded resource</summary>
-                ///   <param name="resourceName" type="String">The unique key or name of the resource</param>
-                ///   <param name="url" type="String">The URL to a script file that, when executed, defines the named resource</param> 
-                ///   <param name="isLiteral" type="Boolean" optional="true">If true, the parsed object return from the URL (as passed to the jQuery.ajax.success handler) will be used as the resource itself</param>
-                /// </signature>
+            _Context.prototype.define_remote = function (resourceID, url, isLiteral) {
                 if (!validate.argCount(arguments, 2, 'define.remote', true)) return;
-                if (!validate.isString(resourceName, 'resourceName', true)) return;
                 if (!validate.isString(url, 'url', true)) return;
 
-                if ($ == null) throw new Error('Cannot use define.remote until jQuery is loaded');
+                var resourceIDs = [];
+                if (_isArray(resourceID)) {
+                    resourceIDs = resourceID;
+                    if (isLiteral === true) {
+                        throw new Error('isLiteral = true is not valid with an array of resource ids');
+                        return;
+                    }
+                } else {
+                    resourceIDs = [resourceID];
+                }
 
-                _define(this, resourceName, [], null, isLiteral, null, false, null, url);
+                for(var item of resourceIDs) {
+                    if (!validate.isString(item, 'resourceID', true)) return;
+                }
+
+                _ensureAjaxProvider(true);
+
+                for(var item of resourceIDs) {
+                    _define(this, item, [], null, isLiteral, null, false, null, url);
+                }
             };
 
-            _Context.prototype.define_external = function (resourceName, source, test) {
-                /// <signature>
-                ///   <summary>Define an external resource reference based on the name of a global variable</summary>
-                ///   <param name="resourceName" type="String">The unique key or name of the resource</param> 
-                ///   <param name="variableName" type="String" optional="true">The global variable name. If ommitted, resourceName is used</param> 
-                /// </signature>  
-                /// <signature>
-                ///   <summary>Define an external resource reference based on a source function. If the source function returns null or 
-                ///   throws an error, resource will continue checking per the define.external.interval and define.external.timeout properties</summary>
-                ///   <param name="resourceName" type="String">The unique key or name of the resource</param> 
-                ///   <param name="source" type="Function">A function which returns the value of the external resource. Function should return null or
-                ///   throw an error if the external resource is not yet available.</param> 
-                /// </signature>  
-                /// <signature>
-                ///   <summary>Define an external resource reference based on a source function and test function. If the test function returns false,
-                ///   resource will continue checking per the define.external.interval and define.external.timeout properties</summary>
-                ///   <param name="resourceName" type="String">The unique key or name of the resource</param> 
-                ///   <param name="source" type="Function">A function which returns the value of the external resource</param> 
-                ///   <param name="test" type="Function">A function which returns true if the external resource is available or false if it is not</param> 
-                /// </signature>  
+            _Context.prototype.define_external = function (resourceID, source, test) {
                 if (!validate.argCount(arguments, 1, 'define.external', true)) return;
-                if (!validate.isString(resourceName, 'resourceName', true)) return;
+                if (!validate.isString(resourceID, 'resourceID', true)) return;
 
                 var argCnt = arguments.length;
                 var isSimple = true;
-                var globalVarName = resourceName;
+                var globalVarName = resourceID;
 
                 if (argCnt > 1) {
                     if ('string' == typeof source) {
@@ -578,39 +649,21 @@
                 }
 
                 if (isSimple) {
-                    source = function () { return window[globalVarName]; };
-                    test = function () { return window.hasOwnProperty(globalVarName); };
+                    source = function () { return ___global[globalVarName]; };
+                    test = function () { return ___global.hasOwnProperty(globalVarName); };
                 }
 
-                _define(this, resourceName, [], source, false, null, true, test, null);
+                _define(this, resourceID, [], source, false, null, true, test, null);
             };
 
-            _Context.prototype.destroy = function (resourceName) {
-                /// <summary>Destroy a named resource by deleting the internal reference to it and calling its destructor (~ method) if defined</summary>
-                /// <param name="resourceName" type="String" />  
+            _Context.prototype.destroy = function (resourceID) {
                 if (!validate.argCount(arguments, 1, 'destroy', true)) return;
-                if (!validate.isString(resourceName, 'resourceName', true)) return;
+                if (!validate.isString(resourceID, 'resourceID', true)) return;
 
-                return _destroyResource(this, resourceName);
+                return _destroyResource(this, resourceID);
             };
 
             _Context.prototype.require = function (dependsOn) {
-                /// <signature>
-                ///   <summary>Gets the content or result of a named resource. Returns null if the resource has not been defined or resolved</summary>
-                ///   <param name="resourceName" type="String" /> 
-                /// </signature> 
-                /// <signature>
-                ///   <summary>Execute a function that depends on one or more named resources</summary> 
-                ///   <param name="dependsOn" type="Array" elementType="String">A list of resource names on which this function depends</param>
-                ///   <param name="definition" type="Function">A function to execute when all required resources have been resolved</param> 
-                /// </signature> 
-                /// <signature>
-                ///   <summary>Execute an instance method that depends on one or more named resources</summary> 
-                ///   <param name="dependsOn" type="Array" elementType="String">A list of resource names on which this method depends</param>
-                ///   <param name="thisArg" type="*">The thisArg to use when applying the method</param>
-                ///   <param name="definition" type="Function">A function to execute when all required resources have been resolved</param> 
-                /// </signature> 
-
                 var argCnt = arguments.length;
                 if (argCnt == 0) {
                     throw new Error('require requires at least one argument');
@@ -619,8 +672,8 @@
 
                 if (argCnt == 1) {
                     // First overload. Simply fetching the definition of the resource. Equivalent to explicit require.getResource(true)
-                    var resourceName = dependsOn;
-                    return this.getResourceHandle(resourceName, true);
+                    var resourceID = dependsOn;
+                    return this.getResourceHandle(resourceID, true);
                 }
 
                 var definition, thisArg;
@@ -648,31 +701,29 @@
                 _define(this, null, dependsOn, definition, false, thisArg);
             };
 
-            _Context.prototype.isDefined = function (resourceName) {
-                if (!this.resources.hasOwnProperty(resourceName)) return false;
-                var resource = this.resources[resourceName];
-                return resource.isDefined;
+            _Context.prototype.isDefined = function (resourceID) {
+                var resource = _getResourceDirect(this, resourceID);
+                return (resource != null) && resource.isDefined;
             };
 
-            _Context.prototype.isResolved = function (resourceName) {
+            _Context.prototype.isResolved = function (resourceID) {
                 /// <summary>Tests whether a resource has been defined and resolved</summary>
                 /// <returns type="Boolean" />
-                if (!this.resources.hasOwnProperty(resourceName)) return false;
-                var resource = this.resources[resourceName];
-                return resource.isDefined && resource.isResolved;
+                var resource = _getResourceDirect(this, resourceID);
+                return (resource != null) && resource.isDefined && resource.isResolved;
             };
 
-            _Context.prototype.getResourceHandle = function (resourceName, resolve) {
+            _Context.prototype.getResourceHandle = function (resourceID, resolve) {
                 /// <summary>Gets a resource definition by name. Returns null if the resource has not been defined or resolved</summary>
-                /// <param name="resourceName" type="String" />
-                /// <param name="resolve" type="Boolean" optional="true">default false. Whether to attempt to resolve the resource if it is not already resolved </param>
-                if (!this.resources.hasOwnProperty(resourceName)) return null;
-                var resource = _getResourceDirect(this, resourceName);
+                /// <param name="resourceID" type="String" />
+                /// <param name="resolve" type="Boolean" optional="true">default false. Whether to attempt to resolve the resource if it is not already resolved </param> 
+                var resource = _getResourceDirect(this, resourceID);
+                if (resource == null) return undefined;
 
                 // Resource is neither defined nor registered to a URL. Return null
                 if (!resource.isDefined && _isEmpty(resource.url)) {
                     if (resolve) {
-                        throw new Error('Resource \'' + resourceName + '\' is not yet defined or resolved');
+                        throw new Error('Resource \'' + resourceID + '\' is not yet defined or resolved');
                         return null;
                     } else {
                         return null;
@@ -680,20 +731,20 @@
                 }
 
                 // Resource is defined and resolved. 
-                if (resource.isDefined && resource.isResolved) return resource.handle;
+                if (resource.isDefined && resource.isResolved) return resource.value;
 
                 // Resource is not resolved. Attempt to resolve if resolve == true
-                if (!resource.isResolved && resolve && _resolve(this, resource)) return resource.handle;
+                if (!resource.isResolved && resolve && _resolve(this, resource)) return resource.value;
 
                 if (resolve) {
-                    throw new Error('Resource \'' + resourceName + '\' is not yet defined or resolved');
+                    throw new Error('Resource \'' + resourceID + '\' is not yet defined or resolved');
                     return null;
                 } else {
                     return null;
                 }
             };
 
-            _Context.prototype.getResources = function (includeResources, includeAnonymous, includeDefined, includeResolved, includeUrls) {
+            _Context.prototype.getResources = function (includeResources, includeActions, includeDefined, includeResolved, includeUrls) {
                 /// <returns type="ResourceInfoCollection" elementType="ResourceInfo" />
                 var definedFiltered = ('boolean' == typeof includeDefined);
                 var resolvedFiltered = ('boolean' == typeof includeResolved);
@@ -702,64 +753,53 @@
                 var infoMap = {};
 
                 if (includeUrls || (includeResources !== false)) {
-                    for (var resourceName in this.resources) {
-                        var resource = _getResourceDirect(this, resourceName);
+                    for (var resourceID in this.resources) {
+                        var resource = _getResourceDirect(this, resourceID);
                         if (resource.isUrlResource && !includeUrls) continue;
                         if (!resource.isUrlResource && (includeResources === false)) continue;
                         if (definedFiltered && (resource.isDefined != includeDefined)) continue;
                         if (resolvedFiltered && (resource.isResolved != includeResolved)) continue;
-                        resultMap[resourceName] = infoMap[resourceName] = new ResourceInfo(resource);
+                        resultMap[resourceID] = infoMap[resourceID] = new ResourceInfo(resource);
                     }
                 }
 
-                if (includeAnonymous !== false) {
+                if (includeActions !== false) {
                     for (var i = 0 ; i < this.pendingActions.length; i++) {
                         var resource = this.pendingActions[i];
-                        resourceName = resource.name;
+                        resourceID = resource.id;
                         if (definedFiltered && (resource.isDefined != includeDefined)) continue;
                         if (resolvedFiltered && (resource.isResolved != includeResolved)) continue;
-                        resultMap[resourceName] = infoMap[resourceName] = new ResourceInfo(resource);
+                        resultMap[resourceID] = infoMap[resourceID] = new ResourceInfo(resource);
                     }
                 }
 
                 _expandResourceInfo(this, infoMap);
                 var returnValues = new ResourceInfoCollection();
-                for (var resourceName in resultMap) {
-                    returnValues.push(resultMap[resourceName]);
+                for (var resourceID in resultMap) {
+                    returnValues.push(resultMap[resourceID]);
                 }
                 return returnValues;
             };
 
-            _Context.prototype.getResourceInfoByName = function (resourceName, expandDependsOn) {
-                /// <summary>Gets a copy of externally visible information about a resource. Returns null if the resource has never been defined or referenced.</summary>
-                /// <param name="resourceName" type="String" />
-                /// <param name="expandDependsOn" type="Boolean" optional="true">Default false. true to expand the depends on names to separate resolved and unresolved lists</param>
-                var resource = _getResourceDirect(this, resourceName);
+            // Implementation of resource.describe
+            _Context.prototype.getResourceInfoByName = function (resourceID) {
+                var resource = _getResourceDirect(this, resourceID);
                 if (resource == null) return null;
 
                 var infoMap = {};
-                var info = infoMap[resourceName] = new ResourceInfo(resource);
+                var info = infoMap[resourceID] = new ResourceInfo(resource);
                 _expandResourceInfo(this, infoMap);
                 return info;
             };
 
             _Context.prototype.resolve = function () {
-                /// <signature>
-                ///   <summary>Attempt to resolve all unresolved resources</summary>  
-                /// </signature> 
-                /// <signature>
-                ///   <summary>Attempt to resolved a resource by name</summary> 
-                ///   <param name="resourceName" type="String">The unique key or name of the resource</param> 
-                ///   <returns type="Boolean" />
-                /// </signature> 
-
                 var hasName = (arguments.length > 0) && (typeof arguments[0] == 'string') && !_isEmpty(arguments[0]);
                 if (hasName) {
                     var resource = _getResource(this, arguments[0]);
                     return _resolve(this, resource);
                 } else {
-                    for (var resourceName in this.resources) {
-                        var resource = this.resources[resourceName];
+                    for (var resourceID in this.resources) {
+                        var resource = this.resources[resourceID];
                         if (!resource.isResolved) {
                             _resolve(this, resource);
                         }
@@ -791,20 +831,12 @@
             };
 
             _Context.prototype.list_unresolved = function (returnText) {
-                /// <signature>
-                ///   <summary>Print a formatted list of any undefined resources, unresolved resources, and unresolved actions to the console</summary>
-                /// </signature>
-                /// <signature>
-                ///   <summary>Generate a formatted list of any undefined resources, unresolved resources, and unresolved actions and return it as text or print it to the console</summary>
-                ///   <param name="returnText" type="Boolean" optional="true">Default false. Wether to return the text of the messages instead of printing it to the console</param>
-                /// </signature>
-
                 var resources = this.getResources(true, true, null, false, true);
                 var text = '';
                 if (resources.length == 0) {
                     text = 'All resources and actions have been resolved';
                 } else {
-                    resources.format();
+                    text = resources.format();
                 }
                 if (returnText) {
                     return text;
@@ -814,31 +846,39 @@
             };
 
             // CORE FUNCTIONS: These require the context state as input
-            function _getResource(ctx, resourceName) {
+            function _getResource(ctx, resourceID) {
                 /// <param name="ctx" type="_Context" />
-                /// <param name="resourceName" type="String">The unique key or name of the resource</param>
+                /// <param name="resourceID" type="String">The unique key or name of the resource</param>
                 /// <returns type="Resource" /> 
-                if (!ctx.resources.hasOwnProperty(resourceName)) {
-                    var resource = ctx.resources[resourceName] = new Resource(resourceName);
+                var resource = _getResourceDirect(ctx, resourceID);
+                if (resource == null) {
+                    resource = ctx.resources[resourceID] = new Resource(resourceID);
 
-                    if (ctx.automaticExternals && window.hasOwnProperty(resourceName)) {
-                        if (ctx.debug) console.log('Using existing global object for resource \'' + resourceName + '\'');
+                    if (ctx.automaticExternals && ___global.hasOwnProperty(resourceID)) {
+                        if (ctx.debug) console.log('Using existing global object for resource \'' + resourceID + '\'');
                         resource.isDefined = true;
                         resource.isLiteral = true;
                         resource.isExternal = true;
                         resource.isInferred = true;
                         resource.isResolved = true;
-                        resource.handle = resource.definition = window[resourceName];
+                        resource.value = resource.definition = ___global[resourceID];
                     }
                 }
-                return ctx.resources[resourceName];
+
+                return resource;
             }
 
-            function _getResourceDirect(ctx, resourceName) {
+            function _getResourceDirect(ctx, resourceID) {
                 /// <param name="ctx" type="_Context" />
-                /// <param name="resourceName" type="String">The unique key or name of the resource</param>
+                /// <param name="resourceID" type="String">The unique key or name of the resource</param>
                 /// <returns type="Resource" />
-                return ctx.resources[resourceName];
+                var ctxtemp = ctx;
+                while (ctxtemp != null) {
+                    var resource = ctxtemp.resources[resourceID];
+                    if (resource != null) return resource;
+                    ctxtemp = ctxtemp.parentContext;
+                }
+                return undefined;
             }
 
             function _resolveDebug(ctx, message) {
@@ -862,11 +902,11 @@
 
                 var unresolvedNames = [];
 
-                for (var resourceName in ctx.resources) {
-                    var resource = ctx.resources[resourceName];
+                for (var resourceID in ctx.resources) {
+                    var resource = ctx.resources[resourceID];
                     if (resource.isExternal && !resource.isResolved) {
                         if (!_resolve(ctx, resource)) {
-                            unresolvedNames.push(resourceName);
+                            unresolvedNames.push(resourceID);
                         }
                     }
                 }
@@ -893,15 +933,15 @@
                 /// <param name="result" type="*" />
                 /// <returns type="Boolean" />
                 if (resource.isResolved) {
-                    if (ctx.debug) _resolveDebug(ctx, 'Resource \'' + resource.name + '\' already resolved');
+                    if (ctx.debug) _resolveDebug(ctx, 'Resource \'' + resource.id + '\' already resolved');
                     return true;
                 }
                 if (!resource.isDefined && !resource.isRemote) {
-                    if (ctx.debug) _resolveDebug(ctx, 'Resource \'' + resource.name + '\' not yet defined');
+                    if (ctx.debug) _resolveDebug(ctx, 'Resource \'' + resource.id + '\' not yet defined');
                     return false;
                 }
 
-                var resLabel = (resource.isAnonymousAction ? resource.name : 'resource ' + resource.name);
+                var resLabel = (resource.isAnonymousAction ? resource.id : 'resource ' + resource.id);
                 var resPrefix = '[' + resLabel + ']:: ';
 
                 if (result === undefined) {
@@ -923,23 +963,23 @@
                             if (dependsOnResource.isResolved) {
                                 if (dependsOnResource.isUrlResource) {
                                     if (resource.isLiteral) {
-                                        resource.definition = dependsOnResource.handle;
+                                        resource.definition = dependsOnResource.value;
                                     }
                                 } else {
-                                    definitionArgs.push(dependsOnResource.handle);
+                                    definitionArgs.push(dependsOnResource.value);
                                 }
                             } else if (_resolve(ctx, dependsOnResource)) {
                                 _removeItem(dependsOnResource.pendingDependentResources, resource);
                                 if (dependsOnResource.isUrlResource) {
                                     if (resource.isLiteral) {
-                                        resource.definition = dependsOnResource.handle;
+                                        resource.definition = dependsOnResource.value;
                                     }
                                 } else {
-                                    definitionArgs.push(dependsOnResource.handle);
+                                    definitionArgs.push(dependsOnResource.value);
                                 }
                             } else {
                                 if (ctx.debug) {
-                                    _resolveDebug(ctx, resPrefix + 'Could not resolve required resource ' + dependsOnResource.name + '. Aborting resolve');
+                                    _resolveDebug(ctx, resPrefix + 'Could not resolve required resource ' + dependsOnResource.id + '. Aborting resolve');
                                 }
                                 // Don't bother resolving any additional resources 
                                 resource.isResolving = false;
@@ -949,22 +989,49 @@
                     }
 
                     if (resource.isUrlResource) {
-                        if ($ == null) {
-                            throw new Error('Cannot result URL resource until jQuery is loaded');
-                            return false;
-                        }
+                        _ensureAjaxProvider(true);
 
-                        $.ajax({
-                            url: resource.url,
-                            success: function (data) {
-                                _resolve(ctx, resource, data);
-                            },
-                            error: function () {
-                                resource.isResolving = false;
-                                ctx.resolveDepth--;
-                                throw new Error('Failed to load remote resource from url \'' + resource.url + '\'');
-                            }
-                        });
+                        var fnSuccess = function (data) {
+                            _resolve(ctx, resource, data);
+                        };
+
+                        var fnError = function () {
+                            resource.isResolving = false;
+                            ctx.resolveDepth--;
+                            throw new Error('Failed to load remote resource from url \'' + resource.url + '\'');
+                        };
+
+                        if (ajaxProvider == 'jquery') {
+                            $.ajax({
+                                url: resource.url,
+                                success: function (data) {
+                                    try {
+                                        _resolve(ctx, resource, data);
+                                    } catch (error) {
+                                        console.error(error);
+                                        fnError();
+                                    }
+                                },
+                                error: fnError
+                            });
+                        } else if (ajaxProvider == 'axios') {
+                            axios.get(resource.url)
+                                .then(function (response) {
+                                    var data = response.data;
+                                    if (response.headers && (String(response.headers['content-type']).toLowerCase() == 'application/javascript')) {
+                                        var h = document.getElementsByTagName('head')[0];
+                                        var scr = document.createElement('script');
+                                        scr.innerHTML = data;
+                                        h.appendChild(scr);
+                                        scr.remove();
+                                    }
+                                    _resolve(ctx, resource, data);
+                                })
+                                .catch(function (error) {
+                                    console.error(error);
+                                    fnError();
+                                });
+                        }
 
                         // Return false now because the resource is NOT yet resolved
                         return false;
@@ -977,7 +1044,7 @@
                                 temp_handle = resource.definition();
                             }
                         } else if (resource.isLiteral) {
-                            isLoaded = window.hasOwnProperty(resource.name);
+                            isLoaded = ___global.hasOwnProperty(resource.id);
                         } else {
                             temp_handle = resource.definition();
                             isLoaded = (temp_handle != null);
@@ -990,23 +1057,23 @@
                         }
 
                         if (temp_handle != null) {
-                            resource.handle = temp_handle;
+                            resource.value = temp_handle;
                         } else {
-                            resource.handle = resource.definition = window[resource.name];
+                            resource.value = resource.definition = ___global[resource.id];
                         }
                     } else if (resource.isAnonymousAction) {
                         if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Executing anonymous action');
                         resource.definition.apply(resource.thisArg, definitionArgs);
                     } else if (resource.isLiteral) {
                         if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Assigning literal resource definition');
-                        resource.handle = resource.definition;
+                        resource.value = resource.definition;
                     } else {
                         if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Executing resource definition');
-                        resource.handle = resource.definition.apply(null, definitionArgs);
+                        resource.value = resource.definition.apply(null, definitionArgs);
                     }
                 } else {
                     if (ctx.debug) _resolveDebug(ctx, resPrefix + 'Assigning ajax result to URL resource definition');
-                    resource.handle = result;
+                    resource.value = result;
                 }
 
                 resource.isResolved = true;
@@ -1075,9 +1142,9 @@
                 return true;
             }
 
-            function _define(ctx, resourceName, dependsOn, definition, isLiteral, thisArg, isExternal, test, url) {
+            function _define(ctx, resourceID, dependsOn, definition, isLiteral, thisArg, isExternal, test, url) {
                 /// <param name="ctx" type="_Context" />
-                /// <param name="resourceName" type="String" />
+                /// <param name="resourceID" type="String" />
                 /// <param name="dependsOn" type="Array" elementType="String" />
                 /// <param name="definition" type="*" />
                 /// <param name="isLiteral" type="Boolean" />
@@ -1086,26 +1153,26 @@
                 /// <param name="test" type="Function" />
 
                 var resource;
-                var isAnonymousAction = _isEmpty(resourceName);
+                var isAnonymousAction = _isEmpty(resourceID);
                 var isRemote = !_isEmpty(url);
                 var url_resource = null;
 
                 if (isRemote) {
                     var url_lc = (url || '').toLowerCase();
-                    resource = _getResource(ctx, resourceName);
+                    resource = _getResource(ctx, resourceID);
                     url_resource = _getResource(ctx, '__URL::' + url_lc);
 
                     if (!resource.isDefined && _isEmpty(resource.url)) {
-                        // First time _define ever called for this resource name
+                        // First time _define ever called for this resource id
                         if (url_resource.isResolved) {
                             // URL has already been loaded
                             if (isLiteral) {
                                 // Assign the returned content of the URL as the definition of this resource
-                                definition = url_resource.handle;
+                                definition = url_resource.value;
                             } else {
                                 // This call to define is saying that the named resource should be initialized by executing the remote script
                                 // The remote URL has already been loaded, so therefore the named resource should already be defined
-                                throw new Error('Specified url \'' + url + '\' for remote resource \'' + resourceName + '\' has already been loaded, but the named resource was not initialized');
+                                throw new Error('Specified url \'' + url + '\' for remote resource \'' + resourceID + '\' has already been loaded, but the named resource was not initialized');
                                 return;
                             }
                         } else {
@@ -1115,7 +1182,7 @@
                                 url_resource.url = url;
                                 url_resource.isDefined = true;
                             }
-                            dependsOn.push(url_resource.name);
+                            dependsOn.push(url_resource.id);
                         }
                     } else {
                         var isRedefinition = false;
@@ -1129,18 +1196,18 @@
                                 resource.url = url;
                                 return;
                             } else {
-                                // hmm... this url hasn't been called before, but the specified resource name is already defined
-                                // treat this is a name collision
+                                // hmm... this url hasn't been called before, but the specified resource id is already defined
+                                // treat this is a id collision
                                 isRedefinition = true;
                             }
                         }
 
                         if (isRedefinition) {
                             if (ctx.ignoreRedefine) {
-                                /*if (ctx.debug)*/  console.log('Ignoring redefinition of resource \'' + resourceName + '\'');
+                                /*if (ctx.debug)*/  console.log('Ignoring redefinition of resource \'' + resourceID + '\'');
                                 return;
                             } else {
-                                throw new Error('Resource \'' + resourceName + '\' is already defined');
+                                throw new Error('Resource \'' + resourceID + '\' is already defined');
                                 return;
                             }
                         }
@@ -1152,7 +1219,7 @@
                     resource = new Resource('Action ' + (ctx.anonymousIndex++));
                 } else {
                     // Retrieve the existing Resource descriptor, or generate a new empty one
-                    resource = _getResource(ctx, resourceName);
+                    resource = _getResource(ctx, resourceID);
                     if (resource.isDefined) {
                         if (isExternal && resource.isExternal && resource.isInferred) {
                             // Ok, confirming a previously inferred external resource;
@@ -1161,10 +1228,10 @@
                         }
 
                         if (ctx.ignoreRedefine) {
-                            /*if (ctx.debug)*/  console.log('Ignoring redefinition of resource \'' + resourceName + '\'');
+                            /*if (ctx.debug)*/  console.log('Ignoring redefinition of resource \'' + resourceID + '\'');
                             return;
                         } else {
-                            throw new Error('Resource \'' + resourceName + '\' is already defined');
+                            throw new Error('Resource \'' + resourceID + '\' is already defined');
                             return;
                         }
                     }
@@ -1214,10 +1281,10 @@
                     resource.dependsOn.push(dependsOnResource);
                     if (!dependsOnResource.isResolved) {
                         if (isAnonymousAction) {
-                            if (ctx.debug) console.log('Anonymous action depends on resource ' + dependsOnResource.name + ' which is not yet resolved');
+                            if (ctx.debug) console.log('Anonymous action depends on resource ' + dependsOnResource.id + ' which is not yet resolved');
                             dependsOnResource.pendingDependentActions.unshift(resource);
                         } else {
-                            if (ctx.debug) console.log('resource ' + resource.name + ' depends on resource ' + dependsOnResource.name + ' which is not yet resolved');
+                            if (ctx.debug) console.log('resource ' + resource.id + ' depends on resource ' + dependsOnResource.id + ' which is not yet resolved');
                             dependsOnResource.pendingDependentResources.unshift(resource);
                         }
                         pendingDependsOnCnt++;
@@ -1227,7 +1294,7 @@
                 if (pendingDependsOnCnt == 0 || (isAnonymousAction && !ctx.immediateResolve)) {
                     // No pending dependencies OR anonymous action could trigger lazy resolution of dependencies. Attempt to resolve immediately.
                     if (isAnonymousAction || ctx.immediateResolve) {
-                        // Only attempt to result if the resource is an anonymous action OR context calls for immediate resolution of all resources
+                        // Only attempt to resolve if the resource is an anonymous action OR context calls for immediate resolution of all resources
                         var resolved = _resolve(ctx, resource);
                         if (!resolved && isAnonymousAction) {
                             ctx.pendingActions.push(resource);
@@ -1244,51 +1311,75 @@
                 }
             }
 
-            function _destroyResource(ctx, resourceName) {
+            function _destroyResource(ctx, resourceID, removeReferencesOnly) {
                 /// <param name="ctx" type="_Context" />
-                /// <param name="resourceName" type="String" /> 
+                /// <param name="resourceID" type="String" /> 
 
-                if (ctx.resources.hasOwnProperty(resourceName)) {
-                    var resource = _getResourceDirect(ctx, resourceName);
-                    delete ctx.resources[resourceName]
-                    if (resource.isResolved && resource.handle && _isFunction(resource.handle['~'])) {
+                // ONLY destroy resources on THIS context, not parent context.
+                if (ctx.resources.hasOwnProperty(resourceID)) {
+                    var resource = _getResourceDirect(ctx, resourceID);
+
+                    var dependsOn = resource.dependsOn;
+                    if (!resource.isResolved) {
+                        if (resource.pendingDependentActions.length > 0) {
+                            throw new Error('Cannot destroy resource that has pending dependent actions');
+                            return;
+                        } else if (resource.pendingDependentResources.length > 0) {
+                            throw new Error('Cannot destroy resource that has pending dependent resources');
+                            return;
+                        }
+
+                        resource.dependsOn = [];
+
+                        // Remove from lists of pending actions / resources
+                        for (var i = 0; i < dependsOn.length; i++) {
+                            var dependsOnResource = dependsOn[i];
+                            _removeItem(dependsOnResource.pendingDependentActions, resource);
+                            _removeItem(dependsOnResource.pendingDependentResources, resource);
+                        }
+                    }
+
+                    if (removeReferencesOnly) return;
+
+                    delete ctx.resources[resourceID]
+                    if (resource.isResolved && resource.value && _isFunction(resource.value['~'])) {
                         try {
-                            resource.handle['~']();
+                            resource.value['~']();
                         } catch (err) {
-                            console.warn('Encountered error when calling destructor on resource \'' + resourceName + '\'', err);
+                            console.warn('Encountered error when calling destructor on resource \'' + resourceID + '\'', err);
                         }
                     }
                 }
             }
 
-            function _getResourceInfo(context, infoMap, resourceNames, resource) {
+            function _getResourceInfo(context, infoMap, resourceIDs, resource) {
                 /// <returns type="ResourceInfo" />
-                var info = infoMap[resource.name];
+                var info = infoMap[resource.id];
                 if (info == null) {
-                    info = infoMap[resource.name] = new ResourceInfo(resource);
-                    resourceNames.push(resource.name);
+                    info = infoMap[resource.id] = new ResourceInfo(resource);
+                    resourceIDs.push(resource.id);
                 }
                 return info;
             }
 
             function _expandResourceInfo(context, infoMap) {
-                var resourceNames = [];
-                for (var resourceName in infoMap) {
-                    resourceNames.push(resourceName);
+                var resourceIDs = [];
+                for (var resourceID in infoMap) {
+                    resourceIDs.push(resourceID);
                 }
 
                 var j = 0;
-                while (j < resourceNames.length) {
-                    var resourceName = resourceNames[j];
-                    var info = infoMap[resourceName];
+                while (j < resourceIDs.length) {
+                    var resourceID = resourceIDs[j];
+                    var info = infoMap[resourceID];
                     if (info.isAnonymousAction) {
-                        var resource = context.pendingActions.filter(function (x) { return x.name == resourceName; })[0];
+                        var resource = context.pendingActions.filter(function (x) { return x.id == resourceID; })[0];
                     } else {
-                        var resource = _getResourceDirect(context, resourceName);
+                        var resource = _getResourceDirect(context, resourceID);
                     }
 
                     for (var i = 0; i < resource.dependsOn.length; i++) {
-                        var dependsOnInfo = _getResourceInfo(context, infoMap, resourceNames, resource.dependsOn[i]);
+                        var dependsOnInfo = _getResourceInfo(context, infoMap, resourceIDs, resource.dependsOn[i]);
                         if (dependsOnInfo.isResolved) {
                             info.dependsOn.resolved.push(dependsOnInfo);
                         } else {
@@ -1297,12 +1388,12 @@
                     }
 
                     for (i = 0; i < resource.pendingDependentResources.length; i++) {
-                        var dependentInfo = _getResourceInfo(context, infoMap, resourceNames, resource.pendingDependentResources[i]);
+                        var dependentInfo = _getResourceInfo(context, infoMap, resourceIDs, resource.pendingDependentResources[i]);
                         info.pendingDependents.resources.push(dependentInfo);
                     }
 
                     for (i = 0; i < resource.pendingDependentActions.length; i++) {
-                        var dependentInfo = _getResourceInfo(context, infoMap, resourceNames, resource.pendingDependentActions[i]);
+                        var dependentInfo = _getResourceInfo(context, infoMap, resourceIDs, resource.pendingDependentActions[i]);
                         info.pendingDependents.actions.push(dependentInfo);
                     }
 
@@ -1310,11 +1401,12 @@
                 }
             }
 
-
-            window[RESOURCE_JS_KEY] = resource_module;
+            ___global[RESOURCE_JS_KEY] = resource_module;
 
             // Initialize default context
-            Context.create();
+            Context.create(__createToken);
+            Object.defineProperty(Context, 'default', { value: __defaultContext });
         })();
     }
+
 })();
