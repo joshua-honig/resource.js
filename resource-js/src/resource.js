@@ -9,7 +9,7 @@
     if (___global == null) try { ___global = global; } catch (e) { }
     if (___global == null) try { ___global = root; } catch (e) { }
 
-    var RESOURCE_JS_VERSION = '0.4.0';
+    var RESOURCE_JS_VERSION = '1.0.1';
     var RESOURCE_JS_KEY = '__resource-js-' + RESOURCE_JS_VERSION;
 
     if (!___global[RESOURCE_JS_KEY]) {
