@@ -182,7 +182,14 @@ function _annotate_context(context) {
             /// </signature>
         },
         'list': function () {
-
+            /// <signature>
+            ///   <summary>Return a list of ResourceInfos describing the actions, resources, and/or internal url resources in the Context's registry</summary>
+            ///   <param name="includeResources" type="boolean" optional="true">Default true. Whether to include information about named resources, as registered with define or referenced via dependency lists</param>
+            ///   <param name="includeActions" type="boolean" optional="true">Default true. Whether to include information about actions registered with require</param>
+            ///   <param name="includeDefined" type="boolean" optional="true">Default undefined. Whether to filter for defined or undefined resources. If this argument is not provided, both defined and undefined resources will be included</param>
+            ///   <param name="includeResolved" type="boolean" optional="true">Default undefined. Whether to filter for resolved or resolved resources. If this argument is not provided, both resolved and unresolved resources will be included</param>
+            ///   <param name="includeUrls" type="boolean" optional="true">Default false. Whether to include information about internal url resources, which represent unique urls referenced via define.remote</param>
+            /// </signature> 
         },
         'printUnresolved': function () {
             /// <signature>
@@ -247,26 +254,55 @@ function _annotate_context(context) {
         'default': false,
 
         'defined': function () {
+            /// <signature>
+            ///   <summary>Determine whether the provided resourceID has been defined</summary>
+            ///   <param name="resourceID" type="String">The unique key or name of the resource</param>
+            /// </signature>
         },
 
         'resolved': function () {
+            /// <signature>
+            ///   <summary>Determine whether the provided resourceID has been resolved</summary>
+            ///   <param name="resourceID" type="String">The unique key or name of the resource</param>
+            /// </signature>
         }
     });
 
     intellisense.annotate(context.list, {
         'all': function () {
-        },
-        'resolved': function () {
-        },
-        'unresolved': function () {
+            /// <signature>
+            ///   <summary>Return information about all resources, actions, and internal url resources</summary> 
+            /// </signature>
         },
         'defined': function () {
+            /// <signature>
+            ///   <summary>Return information about all defined resources and actions</summary> 
+            /// </signature>
         },
         'undefined': function () {
+            /// <signature>
+            ///   <summary>Return information about all undefined resources. A resource exists in the registry but is undefined if its ID has been referenced in a dependency list, but define has not been called for the resource</summary> 
+            /// </signature>
+        },
+        'resolved': function () {
+            /// <signature>
+            ///   <summary>Return information about all resolved resources. Actions are immediately removed when they are executed, so there are no "resolved" actions in the resource.js registry</summary> 
+            /// </signature>
+        },
+        'unresolved': function () {
+            /// <signature>
+            ///   <summary>Return information about all unresolved resources and actions</summary> 
+            /// </signature>
         },
         'resources': function () {
+            /// <signature>
+            ///   <summary>Return information about resources defined with define or referenced via a dependency list</summary> 
+            /// </signature>
         },
         'actions': function () {
+            /// <signature>
+            ///   <summary>Return information about pending actions registered with require. By definition, all returned ResourceInfos will have isDefined = true and isResolved = false.</summary> 
+            /// </signature>
         }
     });
 }

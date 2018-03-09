@@ -9,7 +9,7 @@
     if (___global == null) try { ___global = global; } catch (e) { }
     if (___global == null) try { ___global = root; } catch (e) { }
 
-    var RESOURCE_JS_VERSION = '0.3.0';
+    var RESOURCE_JS_VERSION = '1.0.2';
     var RESOURCE_JS_KEY = '__resource-js-' + RESOURCE_JS_VERSION;
 
     if (!___global[RESOURCE_JS_KEY]) {
@@ -613,14 +613,14 @@
                     resourceIDs = [resourceID];
                 }
 
-                for(var item of resourceIDs) {
-                    if (!validate.isString(item, 'resourceID', true)) return;
+                for (var i = 0; i < resourceIDs.length; i++) {
+                    if (!validate.isString(resourceIDs[i], 'resourceID', true)) return;
                 }
 
                 _ensureAjaxProvider(true);
 
-                for(var item of resourceIDs) {
-                    _define(this, item, [], null, isLiteral, null, false, null, url);
+                for (var i = 0; i < resourceIDs.length; i++) {
+                    _define(this, resourceIDs[i], [], null, isLiteral, null, false, null, url);
                 }
             };
 
