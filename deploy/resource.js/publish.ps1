@@ -19,11 +19,15 @@ Write-Host "Copying source script to:`r`n   $scriptPath"
 Copy-Item $thisDir\..\..\resource-js\src\resource.js $scriptPath
 Copy-Item $thisDir\..\..\resource-js\src\resource.intellisense.js $docPath
 
-[void][Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic')
-$apiKey = ([string]([Microsoft.VisualBasic.Interaction]::InputBox('Enter the resource.js nuget.org API key', 'Enter API Key'))).Trim()
+Import-Module \\na\open_systems\Scripts\PowerShell\Deployment\NugetTools.psm1
+Publish-Package resource.js -Config $NugetFeeds.TOOLKITS_V7
 
-nuget pack resource.js.nuspec -NoPackageAnalysis
+##[void][Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic')
+##$apiKey = ([string]([Microsoft.VisualBasic.Interaction]::InputBox('Enter the resource.js nuget.org API key', 'Enter API Key'))).Trim()
 
-$nupkgPath = Join-Path $packageDir resource.js.$version.nupkg
+#nuget pack resource.js.nuspec -NoPackageAnalysis
 
-# nuget push $nupkgPath -ApiKey $apiKey -s nuget.org
+#$nupkgPath = Join-Path $packageDir resource.js.$version.nupkg
+
+## nuget push $nupkgPath -ApiKey $apiKey -s nuget.org
+
