@@ -1,7 +1,7 @@
 {
   "name": "resource.js",
-  "version": "1.0.3",
-  "description": "A a lightweight, flexible dependency loader for JavaScript. It loads \"things\" -- scripts, json, object references, or anything else -- in the right order. That's it!",
+  "version": "1.0.4",
+  "description": "A lightweight, flexible dependency loader for JavaScript environments",
   "main": "resource.js",
   "scripts": {
     "test": "test"

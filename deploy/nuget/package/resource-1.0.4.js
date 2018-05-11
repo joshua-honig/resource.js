@@ -20,7 +20,7 @@
         performance.now = function () { return Date.now(); };
     }
 
-    var RESOURCE_JS_VERSION = '1.0.3';
+    var RESOURCE_JS_VERSION = '1.0.4';
     var RESOURCE_JS_KEY = '__resource-js-' + RESOURCE_JS_VERSION;
 
     if (!___global[RESOURCE_JS_KEY]) {
