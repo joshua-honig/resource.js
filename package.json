@@ -1,0 +1,31 @@
+{
+  "name": "resource.js",
+  "version": "1.0.3",
+  "description": "A a lightweight, flexible dependency loader for JavaScript. It loads \"things\" -- scripts, json, object references, or anything else -- in the right order. That's it!",
+  "main": "resource.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joshua-honig/resource.js.git"
+  },
+  "keywords": [
+    "JavaScript",
+    "resource",
+    "module"
+  ],
+  "author": "Joshua Honig",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/joshua-honig/resource.js/issues"
+  },
+  "homepage": "https://github.com/joshua-honig/resource.js#readme",
+  "devDependencies": {
+    "axios": "^0.18.0",
+    "express": "^4.16.3",
+    "jquery": "^3.3.1",
+    "qunit": "^2.6.0",
+    "qunit-cli": "^0.2.0"
+  }
+}
