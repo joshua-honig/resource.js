@@ -20,12 +20,21 @@
         performance.now = function () { return Date.now(); };
     }
 
-    var RESOURCE_JS_VERSION = '1.0.4';
+    var RESOURCE_JS_VERSION = '1.0.5';
     var RESOURCE_JS_KEY = '__resource-js-' + RESOURCE_JS_VERSION;
 
     if (!___global[RESOURCE_JS_KEY]) {
 
         (function () {
+
+            var DEFAULTS = {
+                debug: false,
+                ignoreRedefine: true,
+                automaticExternals: true,
+                immediateResolve: false,
+                externalInterval: 100,
+                externalTimeout: 10000
+            };
 
             var __createToken = {};
             var __defaultContext = null;
@@ -103,7 +112,6 @@
                     return true;
                 }
             };
-
 
             // Static private fields
             var _contextIndex = 1;
@@ -306,7 +314,7 @@
                 formatSet(lines, pendingResources, 'Pending resources');
                 formatSet(lines, pendingActions, 'Pending actions');
                 return lines.join('\r\n');
-            }
+            };
 
             function Context(_context) {
                 /// <param name="_context" type="_Context" />
@@ -591,14 +599,14 @@
                 this.childContexts = [];
                 this.parentContext = parentContext;
 
-                this.externalInterval = 100;
-                this.externalTimeout = 10000;
+                this.externalInterval = DEFAULTS.externalInterval;
+                this.externalTimeout = DEFAULTS.externalTimeout;
             }
 
-            _Context.prototype.debug = false;
-            _Context.prototype.ignoreRedefine = true;
-            _Context.prototype.automaticExternals = true;
-            _Context.prototype.immediateResolve = true;
+            _Context.prototype.debug = DEFAULTS.debug;
+            _Context.prototype.ignoreRedefine = DEFAULTS.ignoreRedefine;
+            _Context.prototype.automaticExternals = DEFAULTS.automaticExternals;
+            _Context.prototype.immediateResolve = DEFAULTS.immediateResolve;
 
             _Context.prototype.define = function (resourceID) {
 

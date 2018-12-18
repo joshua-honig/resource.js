@@ -11,10 +11,17 @@ function Write-Banner ([string]$Message, [System.ConsoleColor]$Color = 'Cyan') {
 if($Browser) {
     Write-Banner 'require.js browser tests.'
     Write-Host '  Starting local express server...'
-    Start-Process node -ArgumentList "$thisDir\server.js"
+    $server_path = [System.IO.Path]::Combine($thisDir, 'server.js')
+    Start-Process node -ArgumentList $server_path
     Write-Host '  Opening default browser... '
-    Start-Process 'http://localhost:19021/browser/resource-test.html'
+    $test_url = 'http://localhost:19021/browser/resource-test.html'
+    switch($PSVersionTable['Platform']) {
+        Unix    { open $test_url }
+        default { Start-Process $test_url }
+    }
 } else {
     Write-Banner 'require.js console tests'
-    node "$thisDir\..\node_modules\qunit-cli\bin\qunit-cli" "$thisDir\console\console-test.js"
+    $cli_path  = [System.IO.Path]::Combine($thisDir, '..', 'node_modules', 'qunit-cli', 'bin', 'qunit-cli')
+    $test_path = [System.IO.Path]::Combine($thisDir, 'console', 'console-test.js')
+    node $cli_path $test_path
 }
