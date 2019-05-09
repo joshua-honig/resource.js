@@ -101,7 +101,14 @@ root.globalLib = {
 
     function createResourceInit(name) {
         return function () {
-            console.log('initializing module ' + name);
+            if (arguments.length == 0) {
+                console.log('initializing module ' + name);
+            } else {
+                console.log('initializing module ' + name + ' from');
+                for(var i = 0; i < arguments.length; i++) {
+                    console.log(' - ' + String(arguments[0]));
+                }
+            }
 
             return { name: name };
         }
@@ -825,7 +832,7 @@ root.globalLib = {
         assert.strictEqual(resource.list.actions().length, 0, 'Actions no longer pending');
     });
 
-    QUnit.test('Automatic detection of subsequently defined global varaible', function (assert) {
+    QUnit.test('Automatic detection of subsequently defined global variable', function (assert) {
         /// <param name="assert" type="QUnit.Assert" />
         resource.reset();
 
@@ -865,7 +872,7 @@ root.globalLib = {
 
     });
 
-    QUnit.test('Manually triggered resolve of subsequently defined global varaible', function (assert) {
+    QUnit.test('Manually triggered resolve of subsequently defined global variable', function (assert) {
         /// <param name="assert" type="QUnit.Assert" />
         resource.reset();
 
@@ -978,13 +985,13 @@ root.globalLib = {
         var glbInfo2 = resource.describe('globalLib');
         assert.ok(glbInfo2.isDefined, 'globalLib is now defined');
         assert.ok(glbInfo2.isExternal, 'globalLib is external');
-        assert.strictEqual(glbInfo2.value, window.globalLib, 'globalLib resource value matches global varaible');
+        assert.strictEqual(glbInfo2.value, window.globalLib, 'globalLib resource value matches global variable');
 
         define.external('glib', 'globalLib');
         var info = resource.describe('glib');
         assert.ok(info.isDefined, 'glib resource is defined');
         assert.ok(info.isExternal, 'glib resource is external');
-        assert.strictEqual(info.value, window.globalLib, 'glib resource value matches global globalLib varaible');
+        assert.strictEqual(info.value, window.globalLib, 'glib resource value matches global globalLib variable');
     });
 
     if (is_node) {
@@ -1119,6 +1126,101 @@ root.globalLib = {
         assert.notOk(dInfo.isResolved, 'd is still *NOT* resolved');
     });
 
+    QUnit.test('pending action', function (assert) {
+        assert.timeout(500);
+        var done = assert.async();
+
+        resource.reset();
+        resource.config.immediateResolve = false;
+        if (!is_node) resource.config.debug = true;
+
+        // This simulates a bug that occurred when a module
+        // ('$page' / 'c') was defined in an event callback
+        // triggered by functionality in jQuery ('b'), which
+        // failed to trigger a pending action
+
+        //  
+        //      jquery  
+        //      / | \
+        //  form  |  $page
+        //     \  |  /
+        //      Action
+        //
+
+        define('form', ['mock-jquery'], function ($) {
+            function HelpfulForm($element) {
+                this.$element = $element;
+            }
+
+            HelpfulForm.fake_name = 'Form';
+
+            return HelpfulForm;
+        });
+
+        var formInfo = resource.describe('form');
+        assert.ok(formInfo.isDefined, 'form is defined');
+        assert.notOk(formInfo.isResolved, 'form is *NOT* resolved');
+
+        define('mock-jquery', function () {
+            var _readyCallbacks = [];
+
+            function pretendJQuery() {
+                if (arguments.length == 1 && (util.isFunction(arguments[0]))) {
+                    var callback = arguments[0];
+                    _readyCallbacks.push(callback);
+                }
+            }
+
+            pretendJQuery._ready = function () {
+                for (var i = (_readyCallbacks.length - 1); i >= 0; i--) {
+                    (_readyCallbacks.shift())();
+                }
+            };
+
+            pretendJQuery.fake_name = 'jQuery';
+            return pretendJQuery;
+        });
+
+        assert.ok(resource.is.defined('mock-jquery'), 'mock-jquery is defined');
+        assert.notOk(resource.is.resolved('mock-jquery'), 'mock-jquery is *NOT* resolved');
+
+        function FakeDocument() {
+            this.name = 'document';
+        }
+
+        // Definition of '$page' waits for callback from 'mock-jquery' (like $(document).ready(...))
+        require('mock-jquery', function ($) {
+            $(function () {
+                var local_document = new FakeDocument();
+                define('$page', local_document);
+            })
+        });
+
+        var actionIsResolved = false;
+
+        // Anonymous action that must be triggered
+        require(['form', 'mock-jquery', '$page'], function (Form, $) {
+            actionIsResolved = true;
+            assert.ok(resource.is.resolved('form'), 'form is resolved');
+            assert.strictEqual(Form.fake_name, 'Form', 'verify injected \'form\' module');
+
+            assert.ok(resource.is.resolved('mock-jquery'), 'mock-jquery is resolved');
+            assert.strictEqual($.fake_name, 'jQuery', 'verify injected \'mock-jquery\' module');
+
+            assert.ok(resource.is.resolved('$page'), '$page is resolved');
+            var $page = require('$page');
+            assert.strictEqual($page.name, 'document', 'verify \'$page\' module');
+
+            done();
+        });
+
+        assert.notOk(actionIsResolved, 'Action is not yet resolved');
+
+        // Trigger 'document ready' in 200 ms
+        var jq = require('mock-jquery');
+        setTimeout(jq._ready.bind(jq), 200);
+    });
+
     if (!is_node) {
         QUnit.test('remote file lazy loading - jquery', function (assert) {
             /// <param name="assert" type="QUnit.Assert" />
@@ -1245,7 +1347,7 @@ root.globalLib = {
 
     QUnit.module('Context');
 
-    QUnit.test('Conext.create', function (assert) {
+    QUnit.test('Context.create', function (assert) {
         /// <param name="assert" type="QUnit.Assert" />
         resource.reset();
 
@@ -1253,7 +1355,7 @@ root.globalLib = {
         var ctxid = context.id;
         assert.throws(function () {
             resource.Context.create('my-context');
-        }, /Context 'my-context' is already defined/, 'Redifintion throws exception');
+        }, /Context 'my-context' is already defined/, 'Redefinition throws exception');
 
         context2 = resource.Context.create('my-context', true);
         assert.notEqual(context.id, context2.id, 'Overwrite = true overwrites the existing context');
@@ -1320,7 +1422,7 @@ root.globalLib = {
 
         assert.throws(function () {
             define('a', def_2);
-        }, /Resource 'a' is already defined/, 'Redifintion throws exception');
+        }, /Resource 'a' is already defined/, 'Redefinition throws exception');
 
         resource.config.ignoreRedefine = true;
 
@@ -1359,7 +1461,7 @@ root.globalLib = {
         assert.strictEqual(resource.is.defined('foo-1'), false, 'destroy removes the module');
         assert.strictEqual(resource.describe('foo-1'), null, 'destroy removes module info');
 
-        // Can redfine
+        // Can redefine
         define('foo-1', { name: 'foo-1' });
     });
 })(root);

@@ -20,7 +20,7 @@
         performance.now = function () { return Date.now(); };
     }
 
-    var RESOURCE_JS_VERSION = '1.0.5';
+    var RESOURCE_JS_VERSION = '1.0.6';
     var RESOURCE_JS_KEY = '__resource-js-' + RESOURCE_JS_VERSION;
 
     if (!___global[RESOURCE_JS_KEY]) {
@@ -1254,6 +1254,8 @@
                                 throw new Error('Resource \'' + resourceID + '\' is already defined');
                                 return;
                             }
+                        } else {
+                            if (ctx.debug) console.log('=> Defining resource \'' + resourceID + '\'');
                         }
                     }
                 }
@@ -1278,6 +1280,8 @@
                             throw new Error('Resource \'' + resourceID + '\' is already defined');
                             return;
                         }
+                    } else {
+                        if (ctx.debug) console.log('=> Defining resource \'' + resourceID + '\'');
                     }
                 }
 
@@ -1336,9 +1340,12 @@
                 }
 
                 if (pendingDependsOnCnt == 0 || (isAnonymousAction && !ctx.immediateResolve)) {
-                    // No pending dependencies OR anonymous action could trigger lazy resolution of dependencies. Attempt to resolve immediately.
-                    if (isAnonymousAction || ctx.immediateResolve) {
-                        // Only attempt to resolve if the resource is an anonymous action OR context calls for immediate resolution of all resources
+                    // No pending dependencies OR anonymous action could trigger lazy resolution of dependencies. Can attempt resolve immediately.
+                    if (isAnonymousAction || ctx.immediateResolve || (resource.pendingDependentActions.length > 0)) {
+                        // Only attempt to resolve if any of the following are true
+                        //  - The resource is an anonymous action 
+                        //  - Resource has pending anonymous actions
+                        //  - Context calls for immediate resolution of all resources
                         var resolved = _resolve(ctx, resource);
                         if (!resolved && isAnonymousAction) {
                             ctx.pendingActions.push(resource);
