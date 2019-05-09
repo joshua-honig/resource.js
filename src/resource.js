@@ -1254,6 +1254,8 @@
                                 throw new Error('Resource \'' + resourceID + '\' is already defined');
                                 return;
                             }
+                        } else {
+                            if (ctx.debug) console.log('=> Defining resource \'' + resourceID + '\'');
                         }
                     }
                 }
@@ -1278,6 +1280,8 @@
                             throw new Error('Resource \'' + resourceID + '\' is already defined');
                             return;
                         }
+                    } else {
+                        if (ctx.debug) console.log('=> Defining resource \'' + resourceID + '\'');
                     }
                 }
 
