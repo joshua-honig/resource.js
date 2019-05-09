@@ -1126,7 +1126,7 @@ root.globalLib = {
         assert.notOk(dInfo.isResolved, 'd is still *NOT* resolved');
     });
 
-    QUnit.test('pending action', function (assert) { 
+    QUnit.test('pending action', function (assert) {
         assert.timeout(500);
         var done = assert.async();
 
@@ -1147,12 +1147,12 @@ root.globalLib = {
         //      Action
         //
 
-        define('form', ['jquery'], function ($) {
+        define('form', ['mock-jquery'], function ($) {
             function HelpfulForm($element) {
                 this.$element = $element;
             }
 
-            HelpfulForm.name = 'Form';
+            HelpfulForm.fake_name = 'Form';
 
             return HelpfulForm;
         });
@@ -1161,20 +1161,7 @@ root.globalLib = {
         assert.ok(formInfo.isDefined, 'form is defined');
         assert.notOk(formInfo.isResolved, 'form is *NOT* resolved');
 
-
-        function FakeDocument() {
-            this.name = 'document';
-        };
-
-        // Definition of '$page' waits for callback from 'jquery' (like $(document).ready(...))
-        require('jquery', function ($) {
-            $(function () {
-                var local_document = new FakeDocument();
-                define('$page', local_document);
-            })
-        });
-
-        define('jquery', function () {
+        define('mock-jquery', function () {
             var _readyCallbacks = [];
 
             function pretendJQuery() {
@@ -1190,23 +1177,35 @@ root.globalLib = {
                 }
             };
 
-            pretendJQuery.name = 'jQuery';
+            pretendJQuery.fake_name = 'jQuery';
             return pretendJQuery;
         });
 
-        assert.ok(resource.is.defined('jquery'), 'jquery is defined');
-        assert.notOk(resource.is.resolved('jquery'), 'jquery is *NOT* resolved');
+        assert.ok(resource.is.defined('mock-jquery'), 'mock-jquery is defined');
+        assert.notOk(resource.is.resolved('mock-jquery'), 'mock-jquery is *NOT* resolved');
+
+        function FakeDocument() {
+            this.name = 'document';
+        }
+
+        // Definition of '$page' waits for callback from 'mock-jquery' (like $(document).ready(...))
+        require('mock-jquery', function ($) {
+            $(function () {
+                var local_document = new FakeDocument();
+                define('$page', local_document);
+            })
+        });
 
         var actionIsResolved = false;
 
         // Anonymous action that must be triggered
-        require(['form', 'jquery', '$page'], function (Form, $) {
+        require(['form', 'mock-jquery', '$page'], function (Form, $) {
             actionIsResolved = true;
             assert.ok(resource.is.resolved('form'), 'form is resolved');
-            assert.strictEqual(Form.name, 'Form', 'verify injected \'form\' module');
+            assert.strictEqual(Form.fake_name, 'Form', 'verify injected \'form\' module');
 
-            assert.ok(resource.is.resolved('jquery'), 'jquery is resolved');
-            assert.strictEqual($.name, 'jQuery', 'verify injected \'jquery\' module');
+            assert.ok(resource.is.resolved('mock-jquery'), 'mock-jquery is resolved');
+            assert.strictEqual($.fake_name, 'jQuery', 'verify injected \'mock-jquery\' module');
 
             assert.ok(resource.is.resolved('$page'), '$page is resolved');
             var $page = require('$page');
@@ -1218,7 +1217,7 @@ root.globalLib = {
         assert.notOk(actionIsResolved, 'Action is not yet resolved');
 
         // Trigger 'document ready' in 200 ms
-        var jq = require('jquery');
+        var jq = require('mock-jquery');
         setTimeout(jq._ready.bind(jq), 200);
     });
 
