@@ -1,6 +1,6 @@
 {
   "name": "resource.js",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "description": "A lightweight, flexible dependency loader for JavaScript environments",
   "main": "resource.js",
   "scripts": {
