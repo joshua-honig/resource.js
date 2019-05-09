@@ -825,7 +825,7 @@ root.globalLib = {
         assert.strictEqual(resource.list.actions().length, 0, 'Actions no longer pending');
     });
 
-    QUnit.test('Automatic detection of subsequently defined global varaible', function (assert) {
+    QUnit.test('Automatic detection of subsequently defined global variable', function (assert) {
         /// <param name="assert" type="QUnit.Assert" />
         resource.reset();
 
@@ -865,7 +865,7 @@ root.globalLib = {
 
     });
 
-    QUnit.test('Manually triggered resolve of subsequently defined global varaible', function (assert) {
+    QUnit.test('Manually triggered resolve of subsequently defined global variable', function (assert) {
         /// <param name="assert" type="QUnit.Assert" />
         resource.reset();
 
@@ -978,13 +978,13 @@ root.globalLib = {
         var glbInfo2 = resource.describe('globalLib');
         assert.ok(glbInfo2.isDefined, 'globalLib is now defined');
         assert.ok(glbInfo2.isExternal, 'globalLib is external');
-        assert.strictEqual(glbInfo2.value, window.globalLib, 'globalLib resource value matches global varaible');
+        assert.strictEqual(glbInfo2.value, window.globalLib, 'globalLib resource value matches global variable');
 
         define.external('glib', 'globalLib');
         var info = resource.describe('glib');
         assert.ok(info.isDefined, 'glib resource is defined');
         assert.ok(info.isExternal, 'glib resource is external');
-        assert.strictEqual(info.value, window.globalLib, 'glib resource value matches global globalLib varaible');
+        assert.strictEqual(info.value, window.globalLib, 'glib resource value matches global globalLib variable');
     });
 
     if (is_node) {
@@ -1245,7 +1245,7 @@ root.globalLib = {
 
     QUnit.module('Context');
 
-    QUnit.test('Conext.create', function (assert) {
+    QUnit.test('Context.create', function (assert) {
         /// <param name="assert" type="QUnit.Assert" />
         resource.reset();
 
@@ -1253,7 +1253,7 @@ root.globalLib = {
         var ctxid = context.id;
         assert.throws(function () {
             resource.Context.create('my-context');
-        }, /Context 'my-context' is already defined/, 'Redifintion throws exception');
+        }, /Context 'my-context' is already defined/, 'Redefinition throws exception');
 
         context2 = resource.Context.create('my-context', true);
         assert.notEqual(context.id, context2.id, 'Overwrite = true overwrites the existing context');
@@ -1320,7 +1320,7 @@ root.globalLib = {
 
         assert.throws(function () {
             define('a', def_2);
-        }, /Resource 'a' is already defined/, 'Redifintion throws exception');
+        }, /Resource 'a' is already defined/, 'Redefinition throws exception');
 
         resource.config.ignoreRedefine = true;
 
@@ -1359,7 +1359,7 @@ root.globalLib = {
         assert.strictEqual(resource.is.defined('foo-1'), false, 'destroy removes the module');
         assert.strictEqual(resource.describe('foo-1'), null, 'destroy removes module info');
 
-        // Can redfine
+        // Can redefine
         define('foo-1', { name: 'foo-1' });
     });
 })(root);
